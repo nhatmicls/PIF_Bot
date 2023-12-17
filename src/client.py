@@ -41,7 +41,7 @@ class botDiscord(Bot):
         )
 
         self.database_handle = botDatabase(
-            url=get_env_data("DATABASE_URL"),
+            url=get_config_value("database_url"),
             database_name=get_config_value("database_name"),
             collection_name=get_config_value("collection_name"),
         )
@@ -50,7 +50,7 @@ class botDiscord(Bot):
         print(f"{self.user} has connected to Discord!")
 
         await bot.add_cog(botCommands(bot=bot))
-        await bot.add_cog(botChatGPT(bot=bot, api_key=get_env_data("OPENAI_API_KEY")))
+        await bot.add_cog(botChatGPT(bot=bot, api_key=get_config_value("openai_key")))
         await bot.add_cog(
             botMemberManagement(bot=bot, database_handle=self.database_handle)
         )

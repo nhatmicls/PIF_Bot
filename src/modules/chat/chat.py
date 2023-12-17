@@ -8,7 +8,7 @@ from discord.ext.commands import Cog
 from discord import app_commands
 
 import openai
-from openai.error import RateLimitError
+from openai import RateLimitError
 
 from utils import *
 from typing import *

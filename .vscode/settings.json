@@ -1,3 +1,10 @@
 {
-    "python.pythonPath": "/usr/bin/python3.7"
+    "python.pythonPath": "/usr/bin/python3.7",
+    "python.analysis.extraPaths": [
+        "./src/modules/member",
+        "./src/database",
+        "./src/modules",
+        "./src/handler",
+        "./src"
+    ]
 }

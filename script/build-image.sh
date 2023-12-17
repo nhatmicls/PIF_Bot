@@ -3,7 +3,7 @@
 echo "Input number to choice release version or test version"
 echo "1: release"
 echo "2: test"
-echo "3: build"
+echo "3: dev"
 
 read release
 
@@ -23,6 +23,9 @@ if [[ "$release" == "1" ]]; then
     target="--target prod"
 elif [[ "$release" == "2" ]]; then
     name="botpif_test"
+    target="--target dev"
+elif [[ "$release" == "3" ]]; then
+    name="botpif_dev"
     target="--target dev"
 fi
 

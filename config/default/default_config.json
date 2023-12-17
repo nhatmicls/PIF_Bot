@@ -1,8 +1,11 @@
 {
     "default_config": {
+        "discord_token": "x",
+        "openai_key": "x",
+        "database_url": "x",
         "database_name": "x",
         "collection_name": "x",
-        "change_mode_time": 0,
+        "change_mode_time": 15,
         "pif_guild_id": 1,
         "birdthday_check_enable": "True",
         "birthday_check_hour_utc": 1,

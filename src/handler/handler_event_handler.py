@@ -7,7 +7,7 @@ import discord
 from discord.ext.commands import Cog, Bot
 
 import openai
-from openai.error import RateLimitError
+from openai import RateLimitError
 
 from utils import *
 from typing import *

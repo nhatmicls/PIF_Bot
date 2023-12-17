@@ -13,7 +13,7 @@ FFMPEG_PATH = "C:/Program Files/ffmpeg/bin/ffmpeg.exe"
 STATUS_FILE_PATH = "./config/bot_status.json"
 BIRTHDAY_WISH_PATH = "./config/birthday_wishes/"
 
-DEFAULT_CONFIG_FILE_PATH = "./config/default/default_config.json"
+DEFAULT_CONFIG_FILE_PATH = "./config/default/product_config.json"
 
 
 def get_env_data(env: str):

@@ -20,4 +20,4 @@ sys.path.append(parent_dir_path + "/src/handler")
 from client import bot
 from utils import *
 
-bot.run(token=get_env_data("DISCORD_TOKEN"))
+bot.run(token=get_config_value("discord_token"))
