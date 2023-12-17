@@ -23,7 +23,7 @@ if [[ "$release" == "1" ]]; then
     target="--target prod"
 elif [[ "$release" == "2" ]]; then
     name="botpif_test"
-    target="--target dev"
+    target="--target test"
 elif [[ "$release" == "3" ]]; then
     name="botpif_dev"
     target="--target dev"

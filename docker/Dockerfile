@@ -35,7 +35,7 @@ RUN pip install -r /pif/bot-playground/requirements.txt
 
 WORKDIR /pif/bot-playground
 
-FROM main as prod
+FROM main as test
 ADD ./requirements.txt /pif/bot-playground/
 
 # Download and install pip package
@@ -43,7 +43,9 @@ RUN pip install --upgrade pip
 RUN pip install -r /pif/bot-playground/requirements.txt
 
 #Copy file
+WORKDIR /pif/bot-playground
 ADD ./ /pif/bot-playground/
 
-WORKDIR /pif/bot-playground
+FROM test as prod
+
 ENTRYPOINT python3 -u bot.py
