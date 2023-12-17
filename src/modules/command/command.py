@@ -90,6 +90,12 @@ class botCommands(Cog):
 
         return embed
 
+    async def _get_anime_image(
+        self, type:str,choices: app_commands.Choice[str]
+    ):
+        return_data = await self._random_anime_image(type=type, choices=choices)
+        return return_data
+    
     @app_commands.command(
         name="cat",
         description="Just cat",
@@ -120,8 +126,8 @@ class botCommands(Cog):
     async def waifu(
         self, interaction: discord.Interaction, choices: app_commands.Choice[str]
     ):
-        return_data = await self._random_anime_image(type="sfw", choices=choices)
         try:
+            return_data=self._get_anime_image(type="sfw",choices=choices)
             if type(return_data) == str:
                 await interaction.response.send_message(return_data, ephemeral=True)
             else:
@@ -145,14 +151,20 @@ class botCommands(Cog):
     async def nsfw(
         self, interaction: discord.Interaction, choices: app_commands.Choice[str]
     ):
-        return_data = await self._random_anime_image(type="nsfw", choices=choices)
         try:
-            if type(return_data) == str:
-                await interaction.response.send_message(return_data, ephemeral=True)
+            if get_config_value("nsfw")=="true":
+                return_data=self._get_anime_image(type="nsfw",choices=choices)
+                if type(return_data) == str:
+                    await interaction.response.send_message(return_data, ephemeral=True)
+                else:
+                    await interaction.response.send_message(
+                        "", embed=return_data, ephemeral=True
+                    )
             else:
-                await interaction.response.send_message(
-                    "", embed=return_data, ephemeral=True
-                )
+                embed_image=discord.File("/pif/bot-playground/image/wtfisthis.jpg",filename="wtfisthis.jpg")
+                return_embed=discord.Embed()
+                return_embed.set_image(url="attachment://wtfisthis.jpg")
+                await interaction.response.send_message("Ehhhh what do you finding hentai",embed=return_embed,file=embed_image, ephemeral=True)
         except:
             await interaction.response.send_message("Some thing error", ephemeral=True)
 
