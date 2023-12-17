@@ -5,6 +5,7 @@ echo "1: build"
 echo "2: run bot"
 echo "3: deploy docker dev contain"
 echo "4: deploy docker prod contain"
+echo "5: install env"
 
 read action
 
@@ -18,4 +19,6 @@ elif [[ "$action" == "3" ]]; then
 elif [[ "$action" == "4" ]]; then
     cd docker
     docker compose -p bot --profile prod up -d
+elif [[ "$action" == "5" ]]; then
+    /bin/bash ./script/generate_env.sh
 fi
