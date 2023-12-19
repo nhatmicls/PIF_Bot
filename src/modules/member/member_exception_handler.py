@@ -14,7 +14,7 @@ class idAlreadySignUp(Exception):
         super().__init__(*args)
 
     def __str__(self) -> str:
-        return "Your discord ID already sign up to this server, please contact to admin for more information"
+        return "Your discord ID already signed up to this server, please contact to admin for more information"
 
 
 class idNotFound(Exception):

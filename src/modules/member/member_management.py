@@ -48,11 +48,11 @@ class botMemberManagement(Cog):
         university_id: str,
     ):
         try:
-            data_verify = await self.database_handle.find_with_filter(
-                "discord_ID", str(interaction.user.id)
+            data_verify = await self.database_handle.check_data_exist(
+                "discord_id", str(interaction.user.id)
             )
 
-            if len(list(data_verify)) > 0:
+            if data_verify == True:
                 raise idAlreadySignUp
 
             await self.database_handle.add_new_people(
@@ -60,10 +60,10 @@ class botMemberManagement(Cog):
                 birthday=birthday,
                 mail=mail,
                 phone=phone,
-                university_ID=university_id,
+                university_id=university_id,
                 PIFer_Cxx="",
                 PIFer_role=["PIFer"],
-                discord_ID=str(interaction.user.id),
+                discord_id=str(interaction.user.id),
                 discord_role=["PIFer"],
             )
             await interaction.response.send_message("Complete sign in", ephemeral=True)
@@ -101,13 +101,13 @@ class botMemberManagement(Cog):
                 "You not have permission", ephemeral=True
             )
         try:
-            discord_ID_database = discord_id[2 : len(discord_id) - 1]
+            discord_id_database = discord_id[2 : len(discord_id) - 1]
 
-            data_verify = await self.database_handle.find_with_filter(
-                "discord_ID", discord_ID_database
+            data_verify = await self.database_handle.check_data_exist(
+                "discord_id", discord_id_database
             )
 
-            if len(list(data_verify)) == 0:
+            if data_verify == False:
                 raise idNotFound
 
             await self.database_handle.update_data_people(
@@ -117,7 +117,9 @@ class botMemberManagement(Cog):
                 phone=phone,
                 university_id=university_id,
                 PIFer_Cxx=pifer_cxx,
-                discord_ID=discord_ID_database,
+                PIFer_role=[""],
+                discord_id=discord_id_database,
+                discord_role=[""],
             )
 
             await interaction.response.send_message("Change completed", ephemeral=True)

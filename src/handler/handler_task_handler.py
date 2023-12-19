@@ -29,7 +29,7 @@ class botTasks(Cog):
 
         self.change_mode.start()
 
-        if get_config_value("birdthday_check_enable") == "True":
+        if get_config_value("birdthday_check_enable") == "true":
             self.birthday_check.start()
 
     async def send_birthday_messeage(self, name: str):
@@ -79,7 +79,7 @@ class botTasks(Cog):
         if len(list(search_result.clone())) > 0:
             for cursor in search_result:
                 birthday_wishes = await self.send_birthday_messeage(cursor["name"])
-                user = await self.bot.fetch_user(cursor["discord_ID"])
+                user = await self.bot.fetch_user(cursor["discord_id"])
                 await user.send(birthday_wishes)
 
     @birthday_check.before_loop
