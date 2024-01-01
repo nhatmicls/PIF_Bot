@@ -41,8 +41,11 @@ async def date_of_birth_verify(birthday: str) -> None:
     date_spliter = birthday.split("/")
     year = int(date_spliter[2])
 
-    if year < 1950 or year > datetime.now().year - 18:
-        raise yearOfBirthError
+    if year < 1950:
+        raise yearOfBirthTooHighError
+
+    if year > datetime.now().year - 18:
+        raise yearOfBirthTooLowError
 
 
 async def expect_return_day_verify(date: str) -> None:

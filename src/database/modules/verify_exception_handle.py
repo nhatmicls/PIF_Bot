@@ -9,12 +9,20 @@ class nameContainNumber(Exception):
         return "Your name contain number."
 
 
-class yearOfBirthError(Exception):
+class yearOfBirthTooLowError(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 
     def __str__(self) -> str:
         return "You should be 18+ to sign up this."
+
+
+class yearOfBirthTooHighError(Exception):
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+
+    def __str__(self) -> str:
+        return "Why you so old to sign up this."
 
 
 class dateOfBirthFormatError(Exception):
