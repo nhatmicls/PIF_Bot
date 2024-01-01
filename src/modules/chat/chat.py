@@ -53,3 +53,8 @@ class botChatGPT(Cog):
     async def gpt(self, interaction: discord.Interaction, gpt_question: str):
         generated_text = self.get_response(gpt_question)
         await interaction.response.send_message(generated_text)
+
+    @app_commands.command(name="say", description="Say something")
+    @app_commands.describe(sentence="Random string")
+    async def say(self, interaction: discord.Interaction, sentence: str):
+        await interaction.channel.send(sentence)
