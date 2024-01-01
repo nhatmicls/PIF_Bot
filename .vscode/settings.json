@@ -5,6 +5,8 @@
         "./src/database",
         "./src/modules",
         "./src/handler",
-        "./src"
+        "./src",
+        "./src/modules/infrastructure",
+        "./src/database/modules"
     ]
 }
