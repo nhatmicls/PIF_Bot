@@ -10,14 +10,18 @@ import os
 from utils import *
 from typing import *
 
-from database_bot_database import botDatabase
+from database_handler import botDatabase
 
 utc = datetime.timezone.utc
 
 # set 8h30 time
 time_birthday_check = datetime.time(
-    hour=get_config_value("birthday_check_hour_utc"),
-    minute=get_config_value("birthday_check_minute_utc"),
+    hour=get_config_value(
+        main_config="birthday_config", config="birthday_check_hour_utc"
+    ),
+    minute=get_config_value(
+        main_config="birthday_config", config="birthday_check_minute_utc"
+    ),
     tzinfo=utc,
 )
 
@@ -29,7 +33,12 @@ class botTasks(Cog):
 
         self.change_mode.start()
 
-        if get_config_value("birdthday_check_enable") == "true":
+        if (
+            get_config_value(
+                main_config="default_config", config="birdthday_check_enable"
+            ).lower()
+            == "true"
+        ):
             self.birthday_check.start()
 
     async def send_birthday_messeage(self, name: str):
@@ -52,7 +61,11 @@ class botTasks(Cog):
 
         return birthday_wishes_file_contents.replace("<Name>", name)
 
-    @loop(minutes=get_config_value("change_mode_time"))
+    @loop(
+        minutes=get_config_value(
+            main_config="default_config", config="change_mode_time"
+        )
+    )
     async def change_mode(self):
         with open(STATUS_FILE_PATH) as status_file:
             status_file_contents = json.loads(status_file.read())
