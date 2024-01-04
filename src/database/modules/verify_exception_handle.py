@@ -30,7 +30,7 @@ class dateOfBirthFormatError(Exception):
         super().__init__(*args)
 
     def __str__(self) -> str:
-        return "Your date of birth have wrong format, format should be DD/MM/YY."
+        return "Your date of birth have wrong format, format should be DD/MM/YYYY."
 
 
 class emailFormatError(Exception):
@@ -57,7 +57,7 @@ class UIDFormatError(Exception):
         return "Your university have wrong format."
 
 
-class yearOfExpectReturnDateError(Exception):
+class yearOfExpectedReturnDateError(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 
@@ -65,9 +65,11 @@ class yearOfExpectReturnDateError(Exception):
         return "You should return this in future not the past."
 
 
-class dateOfExpectReturnDateFormatError(Exception):
+class dateOfExpectedReturnDateFormatError(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 
     def __str__(self) -> str:
-        return "Your expect return time have wrong format, format should be DD/MM/YY."
+        return (
+            "Your expected return time have wrong format, format should be DD/MM/YYYY."
+        )

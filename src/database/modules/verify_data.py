@@ -25,10 +25,11 @@ async def date_verify(date: str) -> bool:
     if len(date_spliter) != 3:
         return False
 
-    date_of_month = int(date_spliter[0])
-    month_of_year = int(date_spliter[1])
+    date_format = "%d/%m/%Y"
 
-    if date_of_month > 31 or month_of_year > 12:
+    try:
+        dateObject = datetime.strptime(date, date_format)
+    except ValueError:
         return False
 
     return True
@@ -48,15 +49,15 @@ async def date_of_birth_verify(birthday: str) -> None:
         raise yearOfBirthTooLowError
 
 
-async def expect_return_day_verify(date: str) -> None:
+async def expected_return_day_verify(date: str) -> None:
     if not await date_verify(date=date):
-        raise dateOfExpectReturnDateFormatError
+        raise dateOfExpectedReturnDateFormatError
 
     date_spliter = date.split("/")
     year = int(date_spliter[2])
 
     if year < datetime.now().year:
-        raise yearOfExpectReturnDateError
+        raise yearOfExpectedReturnDateError
 
 
 """ 
