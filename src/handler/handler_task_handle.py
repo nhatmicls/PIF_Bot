@@ -43,17 +43,21 @@ class botTasks(Cog):
 
     async def send_birthday_messeage(self, name: str):
         file_count = 0
+        birthday_wishes_folder = get_config_value(
+            main_config="birthday_config",
+            config="birthday_wishes_file_path",
+        )
         birthday_wishes_file_path = ""
 
-        for path in os.scandir(BIRTHDAY_WISH_PATH):
+        for path in os.scandir(birthday_wishes_folder):
             if os.path.isfile(path=path.path):
                 file_count += 1
 
         if file_count == 1:
-            birthday_wishes_file_path = BIRTHDAY_WISH_PATH + "1.txt"
+            birthday_wishes_file_path = birthday_wishes_folder + "1.txt"
         else:
             birthday_wishes_file_path = (
-                BIRTHDAY_WISH_PATH + str(random.randint(1, file_count)) + ".txt"
+                birthday_wishes_folder + str(random.randint(1, file_count)) + ".txt"
             )
 
         with open(birthday_wishes_file_path) as birthday_wishes_file:
@@ -67,7 +71,12 @@ class botTasks(Cog):
         )
     )
     async def change_mode(self):
-        with open(STATUS_FILE_PATH) as status_file:
+        with open(
+            get_config_value(
+                main_config="default_config",
+                config="status_file_file_path",
+            )
+        ) as status_file:
             status_file_contents = json.loads(status_file.read())
         staging = status_file_contents["playing_status"][
             random.randint(0, len(list(status_file_contents["playing_status"])) - 1)
@@ -86,7 +95,7 @@ class botTasks(Cog):
         search_topic = today[0:6] + "*"
         search_request = {"$regex": search_topic}
         search_result = await self.database_handle.find_with_filter(
-            "birthday", search_request
+            self.database_handle.member_database, {"birthday": search_request}
         )
 
         if len(list(search_result.clone())) > 0:
