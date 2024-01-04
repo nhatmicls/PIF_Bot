@@ -1,14 +1,42 @@
 import sys
 from pathlib import Path
+from datetime import date
 
 from typing import *
 
+import json
+
 import pymongo
+from pymongo.cursor import Cursor
+from bson import ObjectId
 
 parent_dir_path = str(Path(__file__).resolve().parents[0])
 sys.path.append(parent_dir_path + "/modules")
 
 from verify_data import *
+
+
+class botDatebaseTemplate:
+    infrastructure_database_template = {
+        "borrow_discord_id": "0",
+        "borrowed_object_name": "1",
+        "time_start_borrow": "2",
+        "expected_return_time": "3",
+        "image_borrow_path": "4",
+        "image_return_path": "5",
+        "status": "6",
+    }
+    member_database_template = {
+        "name": "1",
+        "birthday": "2",
+        "mail": "3",
+        "phone": "4",
+        "university_id": "5",
+        "PIFer_Cxx": "6",
+        "PIFer_role": "7",
+        "discord_id": "8",
+        "discord_role": "9",
+    }
 
 
 class botDatabase:
@@ -24,29 +52,55 @@ class botDatabase:
         self.member_database = self.PIF_database[member_database_name]
         self.infrastructure_database = self.PIF_database[infrastructure_database_name]
 
-        self.infrastructure_database_template = {
-            "borrow_object_name": "1",
-            "borrower_id": "2",
-            "time_start_borrow": "3",
-            "expect_return_time": "4",
-            "image_borrow_path": "5",
-            "image_return_path": "5",
-            "status": "5",
-        }
-        self.member_database_template = {
-            "name": "1",
-            "birthday": "2",
-            "mail": "3",
-            "phone": "4",
-            "university_id": "5",
-            "PIFer_Cxx": "6",
-            "PIFer_role": "7",
-            "discord_id": "8",
-            "discord_role": "9",
-        }
-
     async def get_lastest_id(self):
         return self.member_database.count_documents({})
+
+    """
+    Utils section
+    
+    Function:
+    - Check is data exist
+    - Find data in database
+    """
+
+    async def check_data_exist(self, collector: Collection, data: dict) -> bool:
+        try:
+            data = collector.find_one(data)
+            if data != None:
+                return True
+            else:
+                return False
+        except:
+            data = None
+            return False
+
+    async def find_with_filter(self, collector: Collection, data: dict) -> Cursor:
+        try:
+            data = collector.find(data)
+            return data
+        except:
+            return None
+
+    async def auto_fill_missing_date(self, old_date: str) -> str:
+        new_date = ""
+        count = 0
+        try:
+            data = old_date.split("/")
+            for x in data:
+                if count < 2:
+                    if len(x) < 2:
+                        new_date = new_date + "0" + x
+                    else:
+                        new_date += x
+                    new_date += "/"
+                else:
+                    new_date += x
+
+                count += 1
+
+            return new_date
+        except Exception as e:
+            print(e)
 
     """
     Member manager section
@@ -76,9 +130,9 @@ class botDatabase:
         await UID_verify(UID=university_id)
 
         # import data
-        uint = self.member_database_template
+        uint = botDatebaseTemplate.member_database_template.copy()
         uint["name"] = name
-        uint["birthday"] = birthday
+        uint["birthday"] = await self.auto_fill_missing_date(old_date=birthday)
         uint["mail"] = email
         uint["phone"] = phone
         uint["university_id"] = university_id
@@ -110,7 +164,7 @@ class botDatabase:
 
         if birthday != "":
             await date_of_birth_verify(birthday=birthday)
-            data["birthday"] = birthday
+            data["birthday"] = await self.auto_fill_missing_date(old_date=birthday)
 
         if email != "":
             await email_verify(email=email)
@@ -147,19 +201,67 @@ class botDatabase:
     - Update status
     """
 
-    async def check_data_exist(self, key: str, value: str) -> bool:
-        try:
-            data = self.member_database.find_one({key: value})
-            if data != None:
-                return True
-            else:
-                return False
-        except:
-            data = None
+    async def borrow_infrastructure(
+        self, discord_id: str, object_name: str, expected_return_time: str
+    ) -> ObjectId:
+        result = None
+        today = date.today()
 
-    async def find_with_filter(self, key: str, value: str) -> dict:
-        try:
-            data = self.member_database.find({key: value})
-            return data
-        except:
-            return None
+        await expected_return_day_verify(date=expected_return_time)
+
+        data = botDatebaseTemplate.infrastructure_database_template.copy()
+
+        data["borrow_discord_id"] = discord_id
+        data["borrowed_object_name"] = object_name
+        data["time_start_borrow"] = today.strftime("%d/%m/%Y")
+        data["expected_return_time"] = expected_return_time
+        data["image_borrow_path"] = "NA"
+        data["image_return_path"] = "NA"
+        data["status"] = "NA"
+
+        result = self.infrastructure_database.insert_one(data).inserted_id
+        return result
+
+    async def update_infrastructure_status(self, borrow_id: ObjectId, status: str):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = status
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def update_image_borrow_path(
+        self, borrow_id: ObjectId, image_borrow_path: str
+    ):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["image_borrow_path"] = image_borrow_path
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def update_image_return_path(
+        self, borrow_id: ObjectId, image_return_path: str
+    ):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["image_borrow_path"] = image_return_path
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def borrow_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "BORROWING"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def borrow_review_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "BORROWING - NEED REVIEW"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def late_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "LATE"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def extend_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "EXTEND"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def return_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "RETURNED"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
