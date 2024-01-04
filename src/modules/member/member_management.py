@@ -64,7 +64,8 @@ class botMemberManagement(Cog):
     ):
         try:
             data_verify = await self.database_handle.check_data_exist(
-                "discord_id", str(interaction.user.id)
+                self.database_handle.member_database,
+                {"discord_id": str(interaction.user.id)},
             )
 
             if data_verify == True:
@@ -117,7 +118,8 @@ class botMemberManagement(Cog):
             discord_id_database = discord_id[2 : len(discord_id) - 1]
 
             data_verify = await self.database_handle.check_data_exist(
-                "discord_id", discord_id_database
+                self.database_handle.member_database,
+                {"discord_id": discord_id_database},
             )
 
             if data_verify == False:
