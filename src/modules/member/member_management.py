@@ -7,7 +7,8 @@ import discord
 from discord.ext.commands import Cog, Bot
 from discord import app_commands
 
-
+from verify_data import *
+from format_data import *
 from member_exception_handler import *
 from database_handler import botDatabase
 
@@ -47,7 +48,7 @@ class botMemberManagement(Cog):
     @app_commands.describe(
         name="Your name",
         birthday="Your birthday",
-        mail="Your email address",
+        email="Your email address",
         phone="Your phone number",
         university_id="Your university ID (input if you from HCMUT)",
     )
@@ -58,7 +59,7 @@ class botMemberManagement(Cog):
         interaction: discord.Interaction,
         name: str,
         birthday: str,
-        mail: str,
+        email: str,
         phone: str,
         university_id: str = "",
     ):
@@ -71,12 +72,19 @@ class botMemberManagement(Cog):
             if data_verify == True:
                 raise idAlreadySignUp
 
+            # verify data
+            await name_verify(name=name)
+            await date_of_birth_verify(birthday=birthday)
+            await email_verify(email=email)
+            await phone_verify(phone=phone)
+            await UID_verify(UID=university_id)
+
             discord_role, PIFer_role = await self.role_filter(interaction=interaction)
 
             await self.database_handle.add_new_people(
                 name=name,
-                birthday=birthday,
-                email=mail,
+                birthday=await format_date_datatype(old_date=birthday),
+                email=email,
                 phone=phone,
                 university_id=university_id,
                 PIFer_Cxx="",
@@ -96,7 +104,7 @@ class botMemberManagement(Cog):
         discord_id="Mention the user you want to change infomation",
         name="Name you want to change to",
         birthday="Birthday you want to change to",
-        mail="Email address you want to change to",
+        email="Email address you want to change to",
         phone="Phone number you want to change to",
         university_id="University ID you want to change to",
         pifer_cxx="Course of C joining to PIF you want to change to",
@@ -109,7 +117,7 @@ class botMemberManagement(Cog):
         discord_id: str,
         name: str = "",
         birthday: str = "",
-        mail: str = "",
+        email: str = "",
         phone: str = "",
         university_id: str = "",
         pifer_cxx: str = "",
@@ -125,12 +133,28 @@ class botMemberManagement(Cog):
             if data_verify == False:
                 raise idNotFound
 
+            if name != "":
+                await name_verify(name=name)
+
+            if birthday != "":
+                await date_of_birth_verify(birthday=birthday)
+                birthday = await format_date_datatype(old_date=birthday)
+
+            if email != "":
+                await email_verify(email=email)
+
+            if phone != "":
+                await phone_verify(phone=phone)
+
+            if university_id != "":
+                await UID_verify(UID=university_id)
+
             discord_role, PIFer_role = await self.role_filter(interaction=interaction)
 
             await self.database_handle.update_data_people(
                 name=name,
                 birthday=birthday,
-                email=mail,
+                email=email,
                 phone=phone,
                 university_id=university_id,
                 PIFer_Cxx=pifer_cxx,

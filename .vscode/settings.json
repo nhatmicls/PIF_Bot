@@ -7,6 +7,10 @@
         "./src/handler",
         "./src",
         "./src/modules/infrastructure",
-        "./src/database/modules"
+        "./src/database/modules",
+        "./lib/verify_data",
+        "./lib/verify",
+        "./lib/data_verify",
+        "./lib/data_format"
     ]
 }

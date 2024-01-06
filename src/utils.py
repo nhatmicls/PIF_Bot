@@ -10,10 +10,6 @@ from typing import *
 
 BOT_VERSION = 0.2
 
-
-# ffmpeg tool's path
-FFMPEG_PATH = "C:/Program Files/ffmpeg/bin/ffmpeg.exe"
-
 DEFAULT_CONFIG_FILE_PATH = "./config/default/product_config.json"
 
 

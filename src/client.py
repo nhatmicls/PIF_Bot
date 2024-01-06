@@ -21,6 +21,9 @@ sys.path.append(parent_dir_path + "/src/modules/infrastructure")
 sys.path.append(parent_dir_path + "/src/database")
 sys.path.append(parent_dir_path + "/src/handler")
 
+sys.path.append(parent_dir_path + "/lib/data_verify")
+sys.path.append(parent_dir_path + "/lib/data_format")
+
 from member_management import botMemberManagement
 from infrastructure_management import botInfrastructureManagement
 from database_handler import botDatabase

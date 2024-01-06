@@ -7,15 +7,13 @@ import discord
 from discord.ext.commands import Cog
 from discord import app_commands
 
+from utils import *
+from typing import *
+
 import openai
 from openai import RateLimitError
 
-from utils import *
-from typing import *
-from pathlib import Path
-
-parent_dir_path = str(Path(__file__).resolve().parents[1])
-sys.path.append(parent_dir_path + "/src")
+from chat_exceptions_handle import *
 
 
 class botChatGPT(Cog):
@@ -55,6 +53,23 @@ class botChatGPT(Cog):
         await interaction.response.send_message(generated_text)
 
     @app_commands.command(name="say", description="Say something")
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(sentence="Random string")
     async def say(self, interaction: discord.Interaction, sentence: str):
+        await interaction.response.send_message("OK", delete_after=1, ephemeral=True)
         await interaction.channel.send(sentence)
+
+    @say.error
+    async def error_respone(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ):
+        try:
+            if isinstance(
+                error, (app_commands.MissingPermissions, app_commands.MissingAnyRole)
+            ):
+                await interaction.response.send_message(
+                    memberNoPermission.__str__(self=self), ephemeral=True
+                )
+                raise memberNoPermission
+        except Exception as e:
+            print(e)

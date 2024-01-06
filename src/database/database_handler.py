@@ -10,15 +10,12 @@ import pymongo
 from pymongo.cursor import Cursor
 from bson import ObjectId
 
-parent_dir_path = str(Path(__file__).resolve().parents[0])
-sys.path.append(parent_dir_path + "/modules")
-
 from verify_data import *
 
 
 class botDatebaseTemplate:
     infrastructure_database_template = {
-        "borrow_discord_id": "0",
+        "borrower_discord_id": "0",
         "borrowed_object_name": "1",
         "time_start_borrow": "2",
         "expected_return_time": "3",
@@ -81,27 +78,6 @@ class botDatabase:
         except:
             return None
 
-    async def auto_fill_missing_date(self, old_date: str) -> str:
-        new_date = ""
-        count = 0
-        try:
-            data = old_date.split("/")
-            for x in data:
-                if count < 2:
-                    if len(x) < 2:
-                        new_date = new_date + "0" + x
-                    else:
-                        new_date += x
-                    new_date += "/"
-                else:
-                    new_date += x
-
-                count += 1
-
-            return new_date
-        except Exception as e:
-            print(e)
-
     """
     Member manager section
     
@@ -122,17 +98,10 @@ class botDatabase:
         discord_id: str,
         discord_role: List[str],
     ):
-        # verify data
-        await name_verify(name=name)
-        await date_of_birth_verify(birthday=birthday)
-        await email_verify(email=email)
-        await phone_verify(phone=phone)
-        await UID_verify(UID=university_id)
-
         # import data
         uint = botDatebaseTemplate.member_database_template.copy()
         uint["name"] = name
-        uint["birthday"] = await self.auto_fill_missing_date(old_date=birthday)
+        uint["birthday"] = birthday
         uint["mail"] = email
         uint["phone"] = phone
         uint["university_id"] = university_id
@@ -159,23 +128,18 @@ class botDatabase:
         data = self.member_database.find_one({"discord_id": discord_id})
 
         if name != "":
-            await name_verify(name=name)
             data["name"] = name
 
         if birthday != "":
-            await date_of_birth_verify(birthday=birthday)
-            data["birthday"] = await self.auto_fill_missing_date(old_date=birthday)
+            data["birthday"] = birthday
 
         if email != "":
-            await email_verify(email=email)
             data["mail"] = email
 
         if phone != "":
-            await phone_verify(phone=phone)
             data["phone"] = phone
 
         if university_id != "":
-            await UID_verify(UID=university_id)
             data["university_id"] = university_id
 
         if PIFer_Cxx != "":
@@ -207,11 +171,9 @@ class botDatabase:
         result = None
         today = date.today()
 
-        await expected_return_day_verify(date=expected_return_time)
-
         data = botDatebaseTemplate.infrastructure_database_template.copy()
 
-        data["borrow_discord_id"] = discord_id
+        data["borrower_discord_id"] = discord_id
         data["borrowed_object_name"] = object_name
         data["time_start_borrow"] = today.strftime("%d/%m/%Y")
         data["expected_return_time"] = expected_return_time
@@ -253,7 +215,7 @@ class botDatabase:
 
     async def late_infrastructure_status(self, borrow_id: ObjectId):
         data = self.infrastructure_database.find_one({"_id": borrow_id})
-        data["status"] = "LATE"
+        data["status"] = "LATED"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
 
     async def extend_infrastructure_status(self, borrow_id: ObjectId):
@@ -261,7 +223,22 @@ class botDatabase:
         data["status"] = "EXTEND"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
 
+    async def lost_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "LOST"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def deny_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "DENIED"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
     async def return_infrastructure_status(self, borrow_id: ObjectId):
         data = self.infrastructure_database.find_one({"_id": borrow_id})
         data["status"] = "RETURNED"
+        self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def remove_infrastructure_status(self, borrow_id: ObjectId):
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["status"] = "REMOVED"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)

@@ -9,11 +9,34 @@ from typing import *
 
 from datetime import date, datetime
 
+from verify_data import *
+from format_data import *
 from infrastructure_exception_handle import *
 from database_handler import botDatabase
 
 from pymongo.cursor import Cursor
 from bson.json_util import dumps
+
+
+class botInfrastructureManagementRespondDefault:
+    deny_expect_time_respone = (
+        "You unable to borrow.\n"
+        "Your expected return date EXCEEDED the maximum item borrowing duration.\n"
+        "Please contact DIRECT to authority for borrow this item."
+    )
+    deny_out_of_quota_respone = (
+        "You unable to borrow.\n"
+        "Your borrow item quota is reach.\n"
+        "Please contact DIRECT to authority for borrow any more item."
+    )
+
+    review_for_long_time_borrow_respone = (
+        "You able to borrow.\n"
+        "Your expected return date EXCEEDED the maximum item borrowing duration without need permission.\n"
+        "But it will notice to our authority."
+    )
+
+    borrow_respone = "Your borrow ID is: <ID>\n" "Your remaining days is: <days>"
 
 
 class botInfrastructureManagement(Cog):
@@ -26,19 +49,24 @@ class botInfrastructureManagement(Cog):
     async def infrastructure_borrow_embed(self) -> None:
         pass
 
-    async def infrastructure_list_embed(
-        self, discord_name: str, data: Cursor
-    ) -> discord.Embed:
-        embed = discord.Embed(
-            title="Borrow list of " + discord_name,
-            # description="Borrow list",
-            color=discord.Color.random(),
-        )
+    async def infrastructure_borrow_review_embed(self) -> None:
+        pass
 
-        embed.set_author(name="PIF Admin")
-        embed.set_footer(text="Powered by Micls")
+    async def infrastructure_list_embed(
+        self, discord_name: str, data: list
+    ) -> Sequence[discord.Embed]:
+        sequence_embed: Sequence[discord.Embed] = []
 
         for each_data in data:
+            embed = discord.Embed(
+                title="Borrow list of " + discord_name,
+                # description="Borrow list",
+                color=discord.Color.random(),
+            )
+
+            embed.set_author(name="PIF Admin")
+            embed.set_footer(text="Powered by Micls")
+
             embed.add_field(name="Borrow ID", value=each_data["_id"], inline=True)
             embed.add_field(
                 name="Borrowed item name",
@@ -53,8 +81,9 @@ class botInfrastructureManagement(Cog):
 
             # Embed line break
             embed.add_field(name="\u200B", value="\u200B", inline=False)
+            sequence_embed.append(embed)
 
-        return embed
+        return sequence_embed
 
     async def infrastructure_return(self) -> None:
         pass
@@ -73,11 +102,33 @@ class botInfrastructureManagement(Cog):
         object_name: str,
         expected_return_time: str,
     ) -> None:
-        await interaction.response.defer()
         try:
-            data = await self.database_handle.find_with_filter(
+            raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
-                {"borrow_discord_id": str(interaction.user.id)},
+                {
+                    "$and": [
+                        {"borrower_discord_id": str(interaction.user.id)},
+                        {
+                            "status": {
+                                "$in": [
+                                    "BORROWING",
+                                    "BORROWING - NEED REVIEW",
+                                    "LATED",
+                                    "EXTEND",
+                                    "LOST",
+                                ]
+                            }
+                        },
+                    ],
+                },
+            )
+
+            await expected_return_day_verify(date=expected_return_time)
+
+            date_format = "%d/%m/%Y"
+            timedelta = (
+                datetime.strptime(expected_return_time, date_format).date()
+                - datetime.today().date()
             )
 
             borrow_id = await self.database_handle.borrow_infrastructure(
@@ -86,24 +137,85 @@ class botInfrastructureManagement(Cog):
                 expected_return_time=expected_return_time,
             )
 
-            if len(list(data)) > 5:
+            data = list(raw_data.clone()).copy()
+
+            if (timedelta.days) > get_config_value(
+                main_config="infrastructure_config", config="max_days_borrow_auto_deny"
+            ):
+                """
+                Get respone when borrow to long
+                """
+
+                await self.database_handle.deny_infrastructure_status(
+                    borrow_id=borrow_id
+                )
+
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.deny_expect_time_respone,
+                    ephemeral=True,
+                )
+            elif len(list(data)) > get_config_value(
+                main_config="infrastructure_config",
+                config="max_item_borrow",
+            ):
+                """
+                Get respone when borrow too much
+                """
+
+                await self.database_handle.deny_infrastructure_status(
+                    borrow_id=borrow_id
+                )
+
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.deny_out_of_quota_respone,
+                    ephemeral=True,
+                )
+            elif (timedelta.days) > get_config_value(
+                main_config="infrastructure_config",
+                config="max_days_borrow_without_confirm",
+            ):
+                """
+                Get respone when borrow time longer than expect without confirm
+                """
+
                 await self.database_handle.borrow_review_infrastructure_status(
                     borrow_id=borrow_id
                 )
 
-                await interaction.followup.send(
-                    "You will able to borrow but it will be send to admin to review it",
-                    ephemeral=False,
+                respond_id = (
+                    botInfrastructureManagementRespondDefault.borrow_respone.replace(
+                        "<ID>", json.loads(dumps(borrow_id))["$oid"]
+                    )
                 )
+                respond_id = respond_id.replace("<days>", str(timedelta.days))
+
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.review_for_long_time_borrow_respone
+                    + "\n"
+                    + respond_id,
+                    ephemeral=True,
+                )
+
             else:
+                """
+                Get respone when borrow success
+                """
+
                 await self.database_handle.borrow_infrastructure_status(
                     borrow_id=borrow_id
                 )
 
-            await interaction.followup.send(
-                "Your borrow ID is: " + json.loads(dumps(borrow_id))["$oid"],
-                ephemeral=False,
-            )
+                respond_id = (
+                    botInfrastructureManagementRespondDefault.borrow_respone.replace(
+                        "<ID>", json.loads(dumps(borrow_id))["$oid"]
+                    )
+                )
+                respond_id = respond_id.replace("<days>", str(timedelta.days))
+
+                await interaction.response.send_message(
+                    respond_id,
+                    ephemeral=True,
+                )
 
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)
@@ -118,9 +230,24 @@ class botInfrastructureManagement(Cog):
         interaction: discord.Interaction,
     ) -> None:
         try:
-            data = await self.database_handle.find_with_filter(
+            raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
-                {"borrow_discord_id": str(interaction.user.id)},
+                {
+                    "$and": [
+                        {"borrower_discord_id": str(interaction.user.id)},
+                        {
+                            "status": {
+                                "$in": [
+                                    "BORROWING",
+                                    "BORROWING - NEED REVIEW",
+                                    "LATED",
+                                    "EXTEND",
+                                    "LOST",
+                                ]
+                            }
+                        },
+                    ],
+                },
             )
 
             discord_name = await self.database_handle.find_with_filter(
@@ -128,16 +255,18 @@ class botInfrastructureManagement(Cog):
                 {"discord_id": str(interaction.user.id)},
             )
 
-            if len(list(data)) == 0:
+            data = list(raw_data.clone())
+
+            if len(data) == 0:
                 await interaction.response.send_message(
                     "You are not borrowing any item from PIF LAB", ephemeral=True
                 )
             else:
                 return_embed = await self.infrastructure_list_embed(
-                    discord_name[0]["name"], data.clone()
+                    discord_name[0]["name"], data.copy()
                 )
                 await interaction.response.send_message(
-                    embed=return_embed, ephemeral=False
+                    embeds=return_embed, ephemeral=True
                 )
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)
@@ -154,7 +283,7 @@ class botInfrastructureManagement(Cog):
         try:
             data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
-                {"borrow_discord_id": str(interaction.user.id)},
+                {"borrower_discord_id": str(interaction.user.id)},
             )
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)

@@ -10,6 +10,7 @@ from pathlib import Path
 
 parent_dir_path = str(Path(__file__).resolve().parents[0])
 sys.path.append(parent_dir_path + "/src")
+sys.path.append(parent_dir_path + "/lib")
 
 from client import bot
 from utils import *
