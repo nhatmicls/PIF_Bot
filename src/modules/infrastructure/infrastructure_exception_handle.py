@@ -22,4 +22,7 @@ class idNotFound(Exception):
         super().__init__(*args)
 
     def __str__(self) -> str:
-        return "Your discord ID you want to change info isn't exist in system, please contact to admin for more information"
+        return (
+            "Your Discord ID is not yet registered on this server.\n"
+            "Kindly complete the registration process to access this feature."
+        )

@@ -35,6 +35,10 @@ from handler_event_handle import botEvents
 
 from utils import *
 
+GUILD_ID = discord.Object(
+    id=get_config_value(main_config="discord_config", config="guild_id")
+)
+
 
 class botDiscord(Bot):
     def __init__(self):
@@ -77,6 +81,7 @@ class botDiscord(Bot):
         await bot.add_cog(botEvents(bot=bot))
         await bot.add_cog(botTasks(bot=bot, database_handle=self.database_handle))
 
+        # bot.tree.copy_global_to(guild=GUILD_ID)
         await bot.tree.sync()
 
     async def close(self) -> None:

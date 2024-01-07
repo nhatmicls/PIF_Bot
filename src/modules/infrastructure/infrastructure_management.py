@@ -16,6 +16,7 @@ from database_handler import botDatabase
 
 from pymongo.cursor import Cursor
 from bson.json_util import dumps
+from bson import ObjectId
 
 
 class botInfrastructureManagementRespondDefault:
@@ -36,7 +37,11 @@ class botInfrastructureManagementRespondDefault:
         "But it will notice to our authority."
     )
 
-    borrow_respone = "Your borrow ID is: <ID>\n" "Your remaining days is: <days>"
+    borrow_respone = "Your borrow ID is: <ID>\n" "Your remaining days is: <days> ."
+
+    no_borrow_item_respone = "You are not borrowing any item from PIF LAB."
+
+    borrow_id_not_found_respone = "ID not found, please try again."
 
 
 class botInfrastructureManagement(Cog):
@@ -45,6 +50,23 @@ class botInfrastructureManagement(Cog):
 
         self.bot = bot
         self.database_handle = database_handle
+
+    """
+    Utils sector
+    """
+
+    async def check_user_id(self, interaction: discord.Interaction) -> bool:
+        data_verify = await self.database_handle.check_data_exist(
+            self.database_handle.member_database,
+            {"discord_id": str(interaction.user.id)},
+        )
+
+        if not data_verify:
+            raise idNotFound
+
+    """
+    Generator embed sector
+    """
 
     async def infrastructure_borrow_embed(self) -> None:
         pass
@@ -88,6 +110,10 @@ class botInfrastructureManagement(Cog):
     async def infrastructure_return(self) -> None:
         pass
 
+    """
+    API Discord sector
+    """
+
     @app_commands.command(
         name="infrastructure_borrow", description="Register to borrow stuff"
     )
@@ -95,14 +121,32 @@ class botInfrastructureManagement(Cog):
         object_name="Item name",
         expected_return_time="Return day",
     )
-    @app_commands.check(check_guild_id)
     async def infrastructure_borrow(
         self,
         interaction: discord.Interaction,
         object_name: str,
         expected_return_time: str,
     ) -> None:
+        """infrastructure_borrow Create borrow item register
+
+        Create borrow item register
+
+        Args:
+            interaction (discord.Interaction): Discord interaction
+            object_name (str): name of item
+            expected_return_time (str): return date format DD/MM/YYYY
+        """
+
         try:
+            await self.check_user_id(interaction=interaction)
+            await expected_return_day_verify(date=expected_return_time)
+
+            borrow_id = await self.database_handle.borrow_infrastructure(
+                discord_id=str(interaction.user.id),
+                object_name=object_name,
+                expected_return_time=expected_return_time,
+            )
+
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
                 {
@@ -123,18 +167,10 @@ class botInfrastructureManagement(Cog):
                 },
             )
 
-            await expected_return_day_verify(date=expected_return_time)
-
             date_format = "%d/%m/%Y"
             timedelta = (
                 datetime.strptime(expected_return_time, date_format).date()
                 - datetime.today().date()
-            )
-
-            borrow_id = await self.database_handle.borrow_infrastructure(
-                discord_id=str(interaction.user.id),
-                object_name=object_name,
-                expected_return_time=expected_return_time,
             )
 
             data = list(raw_data.clone()).copy()
@@ -154,7 +190,7 @@ class botInfrastructureManagement(Cog):
                     botInfrastructureManagementRespondDefault.deny_expect_time_respone,
                     ephemeral=True,
                 )
-            elif len(list(data)) > get_config_value(
+            elif len(list(data)) >= get_config_value(
                 main_config="infrastructure_config",
                 config="max_item_borrow",
             ):
@@ -224,12 +260,21 @@ class botInfrastructureManagement(Cog):
     @app_commands.command(
         name="infrastructure_list", description="List stuff you are borrowing"
     )
-    @app_commands.check(check_guild_id)
     async def infrastructure_list(
         self,
         interaction: discord.Interaction,
     ) -> None:
+        """infrastructure_list Show borrow list
+
+        Show borrow list return as embed
+
+        Args:
+            interaction (discord.Interaction): Discord Interaction
+        """
+
         try:
+            await self.check_user_id(interaction=interaction)
+
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
                 {
@@ -259,7 +304,8 @@ class botInfrastructureManagement(Cog):
 
             if len(data) == 0:
                 await interaction.response.send_message(
-                    "You are not borrowing any item from PIF LAB", ephemeral=True
+                    botInfrastructureManagementRespondDefault.no_borrow_item_respone,
+                    ephemeral=True,
                 )
             else:
                 return_embed = await self.infrastructure_list_embed(
@@ -275,16 +321,47 @@ class botInfrastructureManagement(Cog):
     @app_commands.command(
         name="infrastructure_extend", description="List stuff you are borrowing"
     )
-    @app_commands.check(check_guild_id)
     async def infrastructure_extend(
         self,
         interaction: discord.Interaction,
+        borrow_id: str,
+        expected_return_time: str,
     ) -> None:
+        """infrastructure_extend Extend borrow duration
+
+        Make a request to delay return day
+
+        Args:
+            interaction (discord.Interaction): Discord Interaction
+            borrow_id (str): Borrower ID
+            expected_return_time (str): New expected return day
+        """
         try:
-            data = await self.database_handle.find_with_filter(
+            await self.check_user_id(interaction=interaction)
+            await expected_return_day_verify(date=expected_return_time)
+
+            raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
-                {"borrower_discord_id": str(interaction.user.id)},
+                {
+                    "$and": [
+                        {"borrower_discord_id": str(interaction.user.id)},
+                        {"_id": ObjectId(borrow_id)},
+                    ],
+                },
             )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                await interaction.response.send_message(
+                    "Found",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.borrow_id_not_found_respone,
+                    ephemeral=True,
+                )
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)
             print(e)
@@ -292,16 +369,20 @@ class botInfrastructureManagement(Cog):
     @app_commands.command(
         name="infrastructure_return", description="Register to return stuff"
     )
-    @app_commands.check(check_guild_id)
     async def infrastructure_return(
         self,
         interaction: discord.Interaction,
     ) -> None:
         try:
-            pass
+            await self.check_user_id(interaction=interaction)
+
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)
             print(e)
+
+    """
+    Admin sector
+    """
 
     @app_commands.command(
         name="infrastructure_admin",
@@ -313,7 +394,6 @@ class botInfrastructureManagement(Cog):
             app_commands.Choice(name="add", value="add"),
         ]
     )
-    @app_commands.check(check_guild_id)
     async def infrastructure_admin(
         self, interaction: discord.Interaction, choices: app_commands.Choice[str]
     ) -> None:

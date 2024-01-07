@@ -53,7 +53,6 @@ class botMemberManagement(Cog):
         university_id="Your university ID (input if you from HCMUT)",
     )
     @app_commands.checks.has_any_role("PIFer")
-    @app_commands.check(check_guild_id)
     async def sign_up_new_member(
         self,
         interaction: discord.Interaction,
@@ -110,7 +109,6 @@ class botMemberManagement(Cog):
         pifer_cxx="Course of C joining to PIF you want to change to",
     )
     @app_commands.checks.has_permissions(manage_roles=True)
-    @app_commands.check(check_guild_id)
     async def change_member_info(
         self,
         interaction: discord.Interaction,
