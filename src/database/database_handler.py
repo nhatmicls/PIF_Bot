@@ -218,8 +218,11 @@ class botDatabase:
         data["status"] = "LATED"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
 
-    async def extend_infrastructure_status(self, borrow_id: ObjectId):
+    async def extend_infrastructure_status(
+        self, borrow_id: ObjectId, expected_return_time: str
+    ):
         data = self.infrastructure_database.find_one({"_id": borrow_id})
+        data["expected_return_time"] = expected_return_time
         data["status"] = "EXTEND"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
 
@@ -238,7 +241,11 @@ class botDatabase:
         data["status"] = "RETURNED"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
 
-    async def remove_infrastructure_status(self, borrow_id: ObjectId):
+    async def confirm_return_infrastructure_status(self, borrow_id: ObjectId):
         data = self.infrastructure_database.find_one({"_id": borrow_id})
-        data["status"] = "REMOVED"
+        data["status"] = "CONFIRM_RETURNED"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
+
+    async def get_start_borrow_date(self, borrow_id: ObjectId) -> str:
+        data = self.infrastructure_database.find_one({"_id": borrow_id})
+        return data["time_start_borrow"]
