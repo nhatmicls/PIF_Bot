@@ -3,11 +3,12 @@ import logging
 import discord
 from discord.ext.commands import Cog, Bot
 from discord import app_commands
+from discord.ext.tasks import loop
 
 from utils import *
 from typing import *
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from verify_data import *
 from format_data import *
@@ -17,6 +18,17 @@ from database_handler import botDatabase
 from pymongo.cursor import Cursor
 from bson.json_util import dumps
 from bson import ObjectId
+
+utc = timezone.utc
+infrastructure_task_time = datetime.time(
+    hour=get_config_value(
+        main_config="infrastructure_config", config="warning_check_hour_utc"
+    ),
+    minute=get_config_value(
+        main_config="infrastructure_config", config="warning_check_minute_utc"
+    ),
+    tzinfo=utc,
+)
 
 
 class botInfrastructureManagementRespondDefault:
@@ -37,11 +49,37 @@ class botInfrastructureManagementRespondDefault:
         "But it will notice to our authority."
     )
 
+    deny_extend_expected_return_day_respone = (
+        "You unable to extend expected return time.\n"
+        "You already extended it the pass.\n"
+        "Please contact DIRECT to authority for extend return day this item."
+    )
+
+    deny_extend_long_expected_return_day_respone = (
+        "You unable to extend expected return time.\n"
+        "Your expected return date EXCEEDED the maximum item borrowing duration.\n"
+        "Please contact DIRECT to authority for extend return day this item."
+    )
+
+    extend_expected_return_day_respone = (
+        "Your expected return date has been extended.\n"
+        "You can not extend anymore please notice that.\n"
+        "Thanks."
+    )
+
     borrow_respone = "Your borrow ID is: <ID>\n" "Your remaining days is: <days> ."
+
+    return_respone = (
+        "Your returned the item.\n"
+        "Thanks for return it ontime.\n"
+        "If you need to borrow any item next time, please register with this system. Thanks"
+    )
 
     no_borrow_item_respone = "You are not borrowing any item from PIF LAB."
 
     borrow_id_not_found_respone = "ID not found, please try again."
+
+    confirm_return_respone = "This item confirm is returned."
 
 
 class botInfrastructureManagement(Cog):
@@ -64,15 +102,36 @@ class botInfrastructureManagement(Cog):
         if not data_verify:
             raise idNotFound
 
+    async def check_admin_user_id(self, discord_id: str) -> bool:
+        discord_id_database = discord_id[2 : len(discord_id) - 1]
+
+        data_verify = await self.database_handle.check_data_exist(
+            self.database_handle.member_database,
+            {"discord_id": discord_id_database},
+        )
+
+        if data_verify == False:
+            raise idNotFound
+
     """
     Generator embed sector
     """
 
-    async def infrastructure_borrow_embed(self) -> None:
-        pass
+    async def infrastructure_borrow_embed(
+        self, discord_name: str, data: list
+    ) -> discord.Embed:
+        embed = discord.Embed(
+            title="Borrow register",
+            color=discord.Color.random(),
+        )
 
-    async def infrastructure_borrow_review_embed(self) -> None:
-        pass
+    async def infrastructure_borrow_review_embed(
+        self, discord_name: str, data: list
+    ) -> discord.Embed:
+        embed = discord.Embed(
+            title="Borrow register",
+            color=discord.Color.random(),
+        )
 
     async def infrastructure_list_embed(
         self, discord_name: str, data: list
@@ -166,14 +225,13 @@ class botInfrastructureManagement(Cog):
                     ],
                 },
             )
+            data = list(raw_data.clone()).copy()
 
             date_format = "%d/%m/%Y"
             timedelta = (
                 datetime.strptime(expected_return_time, date_format).date()
                 - datetime.today().date()
             )
-
-            data = list(raw_data.clone()).copy()
 
             if (timedelta.days) > get_config_value(
                 main_config="infrastructure_config", config="max_days_borrow_auto_deny"
@@ -183,7 +241,7 @@ class botInfrastructureManagement(Cog):
                 """
 
                 await self.database_handle.deny_infrastructure_status(
-                    borrow_id=borrow_id
+                    borrow_id=ObjectId(borrow_id)
                 )
 
                 await interaction.response.send_message(
@@ -199,7 +257,7 @@ class botInfrastructureManagement(Cog):
                 """
 
                 await self.database_handle.deny_infrastructure_status(
-                    borrow_id=borrow_id
+                    borrow_id=ObjectId(borrow_id)
                 )
 
                 await interaction.response.send_message(
@@ -215,7 +273,7 @@ class botInfrastructureManagement(Cog):
                 """
 
                 await self.database_handle.borrow_review_infrastructure_status(
-                    borrow_id=borrow_id
+                    borrow_id=ObjectId(borrow_id)
                 )
 
                 respond_id = (
@@ -238,7 +296,7 @@ class botInfrastructureManagement(Cog):
                 """
 
                 await self.database_handle.borrow_infrastructure_status(
-                    borrow_id=borrow_id
+                    borrow_id=ObjectId(borrow_id)
                 )
 
                 respond_id = (
@@ -319,8 +377,9 @@ class botInfrastructureManagement(Cog):
             print(e)
 
     @app_commands.command(
-        name="infrastructure_extend", description="List stuff you are borrowing"
+        name="infrastructure_extend", description="Extended return day"
     )
+    @app_commands.describe(borrow_id="Borrow ID", expected_return_time="Return day")
     async def infrastructure_extend(
         self,
         interaction: discord.Interaction,
@@ -336,6 +395,7 @@ class botInfrastructureManagement(Cog):
             borrow_id (str): Borrower ID
             expected_return_time (str): New expected return day
         """
+
         try:
             await self.check_user_id(interaction=interaction)
             await expected_return_day_verify(date=expected_return_time)
@@ -353,10 +413,41 @@ class botInfrastructureManagement(Cog):
             data = list(raw_data.clone())
 
             if len(data) > 0:
-                await interaction.response.send_message(
-                    "Found",
-                    ephemeral=True,
+                if data[0]["status"] == "EXTEND":
+                    await interaction.response.send_message(
+                        botInfrastructureManagementRespondDefault.deny_extend_expected_return_day_respone,
+                        ephemeral=True,
+                    )
+                    return
+
+                date_format = "%d/%m/%Y"
+
+                start_day = await self.database_handle.get_start_borrow_date(
+                    borrow_id=ObjectId(borrow_id)
                 )
+
+                timedelta = (
+                    datetime.strptime(expected_return_time, date_format).date()
+                    - datetime.strptime(start_day, date_format).date()
+                )
+
+                if timedelta.days > get_config_value(
+                    main_config="infrastructure_config",
+                    config="max_days_borrow_auto_deny",
+                ):
+                    await interaction.response.send_message(
+                        botInfrastructureManagementRespondDefault.deny_extend_long_expected_return_day_respone,
+                        ephemeral=True,
+                    )
+                else:
+                    await self.database_handle.extend_infrastructure_status(
+                        borrow_id=ObjectId(borrow_id),
+                        expected_return_time=expected_return_time,
+                    )
+                    await interaction.response.send_message(
+                        botInfrastructureManagementRespondDefault.extend_expected_return_day_respone,
+                        ephemeral=True,
+                    )
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementRespondDefault.borrow_id_not_found_respone,
@@ -369,12 +460,46 @@ class botInfrastructureManagement(Cog):
     @app_commands.command(
         name="infrastructure_return", description="Register to return stuff"
     )
+    @app_commands.describe(borrow_id="Borrow ID")
     async def infrastructure_return(
-        self,
-        interaction: discord.Interaction,
+        self, interaction: discord.Interaction, borrow_id: str
     ) -> None:
+        """infrastructure_return Send return request
+
+        Send return request
+
+        Args:
+            interaction (discord.Interaction): Discord Interaction
+            borrow_id (str): borrow id
+        """
+
         try:
             await self.check_user_id(interaction=interaction)
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {
+                    "$and": [
+                        {"borrower_discord_id": str(interaction.user.id)},
+                        {"_id": ObjectId(borrow_id)},
+                    ],
+                },
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                await self.database_handle.return_infrastructure_status(
+                    borrow_id=ObjectId(borrow_id)
+                )
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.return_respone,
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.borrow_id_not_found_respone,
+                    ephemeral=True,
+                )
 
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)
@@ -385,23 +510,343 @@ class botInfrastructureManagement(Cog):
     """
 
     @app_commands.command(
-        name="infrastructure_admin",
-        description="Infrastructure command using for admin",
+        name="infrastructure_admin_borrow",
+        description="Command for admin to register to borrow stuff",
     )
-    @app_commands.choices(
-        choices=[
-            app_commands.Choice(name="remove", value="remove"),
-            app_commands.Choice(name="add", value="add"),
-        ]
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.describe(
+        discord_id="Discord ID borrow item",
+        object_name="Item name",
+        expected_return_time="Return day",
     )
-    async def infrastructure_admin(
-        self, interaction: discord.Interaction, choices: app_commands.Choice[str]
+    async def infrastructure_admin_borrow(
+        self,
+        interaction: discord.Interaction,
+        discord_id: str,
+        object_name: str,
+        expected_return_time: str,
     ) -> None:
-        if choices.value == "remove":
-            pass
-        elif choices.value == "add":
-            pass
-        else:
-            await interaction.response.send_message(
-                "Subcommand not found", ephemeral=False
+        """infrastructure_admin_borrow Create borrow item register bypass everything
+
+        Create borrow item register
+
+        Args:
+            interaction (discord.Interaction): Discord interaction
+            object_name (str): name of item
+            expected_return_time (str): return date format DD/MM/YYYY
+        """
+
+        try:
+            await self.check_admin_user_id(discord_id=discord_id)
+            await expected_return_day_verify(date=expected_return_time)
+
+            borrow_id = await self.database_handle.borrow_infrastructure(
+                discord_id=str(interaction.user.id),
+                object_name=object_name,
+                expected_return_time=expected_return_time,
             )
+
+            date_format = "%d/%m/%Y"
+            timedelta = (
+                datetime.strptime(expected_return_time, date_format).date()
+                - datetime.today().date()
+            )
+
+            """
+            Get respone when borrow success
+            """
+
+            await self.database_handle.borrow_infrastructure_status(
+                borrow_id=ObjectId(borrow_id)
+            )
+
+            respond_id = (
+                botInfrastructureManagementRespondDefault.borrow_respone.replace(
+                    "<ID>", json.loads(dumps(borrow_id))["$oid"]
+                )
+            )
+            respond_id = respond_id.replace("<days>", str(timedelta.days))
+
+            await interaction.response.send_message(
+                respond_id,
+                ephemeral=True,
+            )
+
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infrastructure_admin_list",
+        description="Command for admin to extract borrow list from someone",
+    )
+    @app_commands.describe(
+        discord_id="Discord ID borrow item",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_admin_list(
+        self, interaction: discord.Interaction, discord_id: str
+    ) -> None:
+        """infrastructure_list Show borrow list
+
+        Show borrow list return as embed
+
+        Args:
+            interaction (discord.Interaction): Discord Interaction
+        """
+
+        try:
+            await self.check_admin_user_id(discord_id=discord_id)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {
+                    "$and": [
+                        {"borrower_discord_id": str(interaction.user.id)},
+                        {
+                            "status": {
+                                "$in": [
+                                    "BORROWING",
+                                    "BORROWING - NEED REVIEW",
+                                    "LATED",
+                                    "EXTEND",
+                                    "LOST",
+                                ]
+                            }
+                        },
+                    ],
+                },
+            )
+
+            discord_name = await self.database_handle.find_with_filter(
+                self.database_handle.member_database,
+                {"discord_id": str(interaction.user.id)},
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) == 0:
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.no_borrow_item_respone,
+                    ephemeral=True,
+                )
+            else:
+                return_embed = await self.infrastructure_list_embed(
+                    discord_name[0]["name"], data.copy()
+                )
+                await interaction.response.send_message(
+                    embeds=return_embed, ephemeral=True
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infrastructure_admin_extend",
+        description="Command for admin to extend returned day for someone",
+    )
+    @app_commands.describe(
+        borrow_id="Borrow ID",
+        expected_return_time="Return day",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_admin_extend(
+        self,
+        interaction: discord.Interaction,
+        borrow_id: str,
+        expected_return_time: str,
+    ) -> None:
+        """infrastructure_admin_extend Command for extend borrow
+
+        Command for extend borrow
+
+        Args:
+            interaction (discord.Interaction): _description_
+            borrow_id (str): Borrow ID
+            expected_return_time (str): expected return time
+        """
+
+        try:
+            await self.check_user_id(interaction=interaction)
+            await expected_return_day_verify(date=expected_return_time)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {
+                    "$and": [
+                        {"borrower_discord_id": str(interaction.user.id)},
+                        {"_id": ObjectId(borrow_id)},
+                    ],
+                },
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                await self.database_handle.extend_infrastructure_status(
+                    borrow_id=ObjectId(borrow_id),
+                    expected_return_time=expected_return_time,
+                )
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.extend_expected_return_day_respone,
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.borrow_id_not_found_respone,
+                    ephemeral=True,
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infrastructure_admin_confirm",
+        description="Command for admin to confirm item is returned",
+    )
+    @app_commands.describe(borrow_id="Borrow ID")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_admin_confirm(
+        self, interaction: discord.Interaction, borrow_id: str
+    ) -> None:
+        """infrastructure_admin_confirm Command to confirm item is returned
+
+        Command to confirm item is returned by admin
+
+        Args:
+            interaction (discord.Interaction): Discord Interaction
+            borrow_id (str): borrow ID
+        """
+
+        try:
+            await self.check_user_id(interaction=interaction)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {
+                    "$and": [
+                        {"borrower_discord_id": str(interaction.user.id)},
+                        {
+                            "_id": {
+                                "$in": [
+                                    "BORROWING",
+                                    "BORROWING - NEED REVIEW",
+                                    "LATED",
+                                    "EXTEND",
+                                    "LOST",
+                                ]
+                            }
+                        },
+                    ],
+                },
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                await self.database_handle.confirm_return_infrastructure_status(
+                    borrow_id=ObjectId(borrow_id)
+                )
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.confirm_return_respone,
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementRespondDefault.borrow_id_not_found_respone,
+                    ephemeral=True,
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    """
+    Error handle
+    """
+
+    @infrastructure_admin_borrow.error
+    @infrastructure_admin_list.error
+    @infrastructure_admin_extend.error
+    @infrastructure_admin_confirm.error
+    async def error_admin_respone(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ):
+        try:
+            if isinstance(
+                error, (app_commands.MissingPermissions, app_commands.MissingAnyRole)
+            ):
+                await interaction.response.send_message(
+                    memberNoPermission.__str__(self=self), ephemeral=True
+                )
+                raise memberNoPermission
+        except Exception as e:
+            print(e)
+
+    """
+    Infrastructure task
+    """
+
+    @loop(time=infrastructure_task_time)
+    async def infrastructure_warning_return_task(self):
+        today: date = datetime.date.today() + datetime.timedelta(
+            days=get_config_value(
+                main_config="infrastructure_config",
+                config="warning_return_day_before_days",
+            )
+        )
+        search_topic = today.strftime("%d/%m/%Y")
+        search_request = {"$regex": search_topic}
+        search_result = await self.database_handle.find_with_filter(
+            self.database_handle.infrastructure_database,
+            {
+                "$and": [
+                    {"expected_return_time": search_request},
+                    {
+                        "status": {
+                            "$in": [
+                                "BORROWING",
+                                "BORROWING - NEED REVIEW",
+                                "EXTEND",
+                            ]
+                        }
+                    },
+                ],
+            },
+        )
+
+        if len(list(search_result.clone())) > 0:
+            for cursor in search_result:
+                # birthday_wishes = await self.send_birthday_messeage(cursor["name"])
+                # user = await self.bot.fetch_user(cursor["borrower_discord_id"])
+                # await user.send(birthday_wishes)
+                pass
+
+    @infrastructure_warning_return_task.before_loop
+    async def infrastructure_warning_return_task_before(self):
+        await self.bot.wait_until_ready()
+
+    @loop(time=infrastructure_task_time)
+    async def infrastructure_lost_task(self):
+        today = datetime.date.today().strftime("%d/%m/%Y")
+        search_topic = today[0:6] + "*"
+        search_request = {"$regex": search_topic}
+        search_result = await self.database_handle.find_with_filter(
+            self.database_handle.infrastructure_database,
+            {
+                "$and": [
+                    {"expected_return_time": search_request},
+                    {"status": "LOST"},
+                ],
+            },
+        )
+
+        if len(list(search_result.clone())) > 0:
+            for cursor in search_result:
+                # birthday_wishes = await self.send_birthday_messeage(cursor["name"])
+                # user = await self.bot.fetch_user(cursor["borrower_discord_id"])
+                # await user.send(birthday_wishes)
+                pass
+
+    @infrastructure_lost_task.before_loop
+    async def infrastructure_lost_task_before(self):
+        await self.bot.wait_until_ready()
