@@ -1,0 +1,10 @@
+Chào bạn <Name>! Mình là bot quản lí cơ sở vật chất của PIF Lab
+
+Mình xin thông báo rằng bạn đã đăng kí việc trả [Item_name] mà bạn đã mượn từ PIF Lab.
+
+Việc trả đồ sẽ được kiểm tra bởi ban quản lí.
+
+Trong trường hợp chưa được duyệt trong 1 khoảng thời gian thì bạn có thể liên hệ trực tiếp để giải quyết.
+
+Thân ái và quyết thắng !
+Quản lí cơ sở vật chất PIF

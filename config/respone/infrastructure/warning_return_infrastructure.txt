@@ -1,0 +1,11 @@
+Chào bạn <Name>! Mình là bot quản lí cơ sở vật chất của PIF Lab
+
+Chỉ còn ít ngày nữa là đến ngày trả <Item_name> rồi đấy.
+
+Hãy đảm bảo trả hàng đúng hạn để hoàn thành quy trình trơn tru và thuận tiện nhất cho bạn nhé!
+
+Trong trường hợp bạn cần mượn thêm thì hãy đăng kí với hệ thống hoặc với ban quản lí của CLB.
+Trong vòng **15 ngày** tính từ ngày hết hạn, nếu bạn không có trả đồ hoặc đăng kí gia hạn, **hệ thống sẽ tự mặc định bạn làm mất đồ** !
+
+Thân ái và quyết thắng !
+Quản lí cơ sở vật chất PIF
