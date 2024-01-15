@@ -1,0 +1,10 @@
+Chào bạn <Name>! Mình là bot quản lí cơ sở vật chất của PIF Lab
+
+Mình xin thông báo rằng bạn đã hoàn tất việc trả <Item_name> mà bạn đã mượn từ PIF Lab.
+
+Việc trả <Item_name> của bạn đã được ghi nhận và hệ thống đã cập nhật thông tin mượn đồ của bạn. Nếu có bất kỳ vấn đề gì hoặc cần thêm thông tin, vui lòng liên hệ ban quản lí CLB.
+
+Mình chân thành cảm ơn bạn vì việc trả đồ cho Lab.
+
+Thân ái và quyết thắng !
+Quản lí cơ sở vật chất PIF

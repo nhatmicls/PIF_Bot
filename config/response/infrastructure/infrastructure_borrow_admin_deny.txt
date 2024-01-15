@@ -1,0 +1,13 @@
+Chào bạn <Name>! Mình là bot quản lí cơ sở vật chất của PIF Lab
+
+Mình xin thông báo rằng bạn đã đăng ký mượn thất bại <Item_name> tại PIF Lab.
+
+Bạn hãy hoàn trả đồ về cho PIF Lab sớm nhất có thể để CLB dùng nó trong những sự kiện sắp tới
+
+Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm, vui lòng liên hệ với ban quản lí.
+
+Trong vòng **<Max_return_time>** tính từ ngày hết hạn, nếu bạn không có trả đồ, **hệ thống sẽ tự mặc định bạn làm mất đồ** !
+
+Trân trọng,
+Thân ái và quyết thắng !
+Quản lí cơ sở vật chất PIF

@@ -38,6 +38,11 @@ async def check_guild_id(interaction: discord.Interaction) -> bool:
         return False
 
 
+async def read_text_file(path: str) -> str:
+    f = open(path, "r")
+    return f.read()
+
+
 def print_debug(instance, info):
     message = instance.__class__.__name__
     message += ": "

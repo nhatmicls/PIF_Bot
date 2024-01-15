@@ -112,7 +112,7 @@ class botMemberManagement(Cog):
     async def change_member_info(
         self,
         interaction: discord.Interaction,
-        discord_id: str,
+        discord_id: discord.User,
         name: str = "",
         birthday: str = "",
         email: str = "",
@@ -121,7 +121,7 @@ class botMemberManagement(Cog):
         pifer_cxx: str = "",
     ):
         try:
-            discord_id_database = discord_id[2 : len(discord_id) - 1]
+            discord_id_database = str(discord_id.id)
 
             data_verify = await self.database_handle.check_data_exist(
                 self.database_handle.member_database,
