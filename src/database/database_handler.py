@@ -176,7 +176,9 @@ class botDatabase:
         data["borrower_discord_id"] = discord_id
         data["borrowed_object_name"] = object_name
         data["time_start_borrow"] = today.strftime("%d/%m/%Y")
-        data["expected_return_time"] = expected_return_time
+        data["expected_return_time"] = datetime.strptime(
+            expected_return_time, "%d/%m/%Y"
+        ).strftime("%d/%m/%Y")
         data["image_borrow_path"] = "NA"
         data["image_return_path"] = "NA"
         data["status"] = "NA"
@@ -222,7 +224,9 @@ class botDatabase:
         self, borrow_id: ObjectId, expected_return_time: str
     ):
         data = self.infrastructure_database.find_one({"_id": borrow_id})
-        data["expected_return_time"] = expected_return_time
+        data["expected_return_time"] = datetime.strptime(
+            expected_return_time, "%d/%m/%Y"
+        ).strftime("%d/%m/%Y")
         data["status"] = "EXTEND"
         self.infrastructure_database.find_one_and_replace({"_id": borrow_id}, data)
 
