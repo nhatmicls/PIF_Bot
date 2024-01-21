@@ -48,13 +48,17 @@ class botInfrastructureManagement(Cog):
         self,
         respond: str,
         name: str = "",
+        id: str = "",
         item_name: str = "",
         expected_return_day: str = "",
+        eta_of_days_to_return: str = "",
         max_return_time: str = "",
     ) -> str:
         respond = respond.replace("<Name>", name)
+        respond = respond.replace("<ID>", id)
         respond = respond.replace("<Item_name>", item_name)
         respond = respond.replace("<Expected_return_day>", expected_return_day)
+        respond = respond.replace("<ETA_of_days_to_return>", eta_of_days_to_return)
         respond = respond.replace("<Max_return_time>", max_return_time)
 
         return respond
@@ -100,6 +104,20 @@ class botInfrastructureManagement(Cog):
                 color=discord.Color.random(),
             )
 
+            if each_data["status"] in [
+                "BORROWING",
+                "BORROWING - NEED REVIEW",
+            ]:
+                embed.color = discord.Color.green()
+            elif each_data["status"] == "EXTEND":
+                embed.color = discord.Color.blue()
+            elif each_data["status"] == "RETURNED":
+                embed.color = discord.Color.dark_green()
+            elif each_data["status"] == "LATED":
+                embed.color = discord.Color.yellow()
+            elif each_data["status"] == "LOST":
+                embed.color = discord.Color.dark_red()
+
             embed.set_author(name="PIF Admin")
             embed.set_footer(text="Powered by Micls")
 
@@ -126,11 +144,32 @@ class botInfrastructureManagement(Cog):
 
         return sequence_embed
 
-    async def infrastructure_return(self) -> None:
-        pass
+    """
+    API Discord Generic sector
+    """
+
+    async def _infra_admin_list(self, data) -> Sequence[discord.Embed]:
+        return_embed = []
+
+        while len(data) > 0:
+            discord_id = ""
+            data_filter_id = []
+
+            for each_data in data:
+                if discord_id == "" or each_data["borrower_discord_id"] == discord_id:
+                    discord_id = each_data["borrower_discord_id"]
+                    data_filter_id.append(each_data)
+                    data.remove(each_data)
+
+            return_embed += await self.infrastructure_list_embed(
+                discord_name=(await self.bot.fetch_user(int(discord_id))).display_name,
+                data=data_filter_id,
+            )
+
+        return return_embed
 
     """
-    API Discord sector
+    API Discord USER sector
     """
 
     @app_commands.command(name="infra_borrow", description="Register to borrow stuff")
@@ -241,12 +280,26 @@ class botInfrastructureManagement(Cog):
                 )
                 respond_id = respond_id.replace("<days>", str(timedelta.days))
 
+                noti_channel = await self.bot.fetch_channel(
+                    get_config_value(
+                        main_config="infrastructure_config", config="admin_noti_channel"
+                    )
+                )
+                noti_content = await self.replace_respond_via_dm(
+                    botInfrastructureManagementAdminResponseDefault.borrow_need_review_queue_add_response,
+                    name=str(interaction.user.display_name),
+                    item_name=data[0]["borrowed_object_name"],
+                    eta_of_days_to_return=str(timedelta.days),
+                    id=json.loads(dumps(borrow_id))["$oid"],
+                )
+
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.review_for_long_time_borrow_response
                     + "\n"
                     + respond_id,
                     ephemeral=True,
                 )
+                await noti_channel.send(noti_content)
 
             else:
                 """
@@ -470,6 +523,11 @@ class botInfrastructureManagement(Cog):
             )
 
             data = list(raw_data.clone())
+            noti_channel = self.bot.get_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
 
             if len(data) > 0:
                 await self.database_handle.return_infrastructure_status(
@@ -494,7 +552,15 @@ class botInfrastructureManagement(Cog):
                     item_name=data[0]["borrowed_object_name"],
                 )
 
+                noti_content = await self.replace_respond_via_dm(
+                    botInfrastructureManagementAdminResponseDefault.return_queue_add_response,
+                    name=str(interaction.user.display_name),
+                    item_name=data[0]["borrowed_object_name"],
+                    id=borrow_id,
+                )
+
                 await interaction.user.send(dm_content)
+                await noti_channel.send(noti_content)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -506,7 +572,7 @@ class botInfrastructureManagement(Cog):
             print(e)
 
     """
-    Admin sector
+    API Discord ADMIN sector
     """
 
     @app_commands.command(
@@ -705,9 +771,7 @@ class botInfrastructureManagement(Cog):
                     ephemeral=True,
                 )
 
-                discord_id = await self.bot.fetch_user(
-                    int(data[0]["borrower_discord_id"])
-                )
+                user = await self.bot.fetch_user(int(data[0]["borrower_discord_id"]))
 
                 dm_content = await read_text_file(
                     get_config_value(
@@ -718,12 +782,12 @@ class botInfrastructureManagement(Cog):
 
                 dm_content = await self.replace_respond_via_dm(
                     dm_content,
-                    name=discord_id.display_name,
+                    name=user.display_name,
                     item_name=data[0]["borrowed_object_name"],
                     expected_return_day=expected_return_time,
                 )
 
-                await discord_id.send(dm_content)
+                await user.send(dm_content)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -766,9 +830,7 @@ class botInfrastructureManagement(Cog):
                     ephemeral=True,
                 )
 
-                discord_id = await self.bot.fetch_user(
-                    int(data[0]["borrower_discord_id"])
-                )
+                user = await self.bot.fetch_user(int(data[0]["borrower_discord_id"]))
 
                 dm_content = await read_text_file(
                     get_config_value(
@@ -779,12 +841,12 @@ class botInfrastructureManagement(Cog):
 
                 dm_content = await self.replace_respond_via_dm(
                     dm_content,
-                    name=str(discord_id.display_name),
+                    name=str(user.display_name),
                     item_name=data[0]["borrowed_object_name"],
                     expected_return_day=data[0]["expected_return_time"],
                 )
 
-                await discord_id.send(dm_content)
+                await user.send(dm_content)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -827,9 +889,7 @@ class botInfrastructureManagement(Cog):
                     ephemeral=True,
                 )
 
-                discord_id = await self.bot.fetch_user(
-                    int(data[0]["borrower_discord_id"])
-                )
+                user = await self.bot.fetch_user(int(data[0]["borrower_discord_id"]))
 
                 dm_content = await read_text_file(
                     get_config_value(
@@ -840,14 +900,14 @@ class botInfrastructureManagement(Cog):
 
                 dm_content = await self.replace_respond_via_dm(
                     dm_content,
-                    name=discord_id.display_name,
+                    name=user.display_name,
                     item_name=data[0]["borrowed_object_name"],
                     max_return_time=get_config_value(
                         main_config="infrastructure_config", config="max_return_days"
                     ),
                 )
 
-                await discord_id.send(dm_content)
+                await user.send(dm_content)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -889,9 +949,7 @@ class botInfrastructureManagement(Cog):
                     ephemeral=True,
                 )
 
-                discord_id = await self.bot.fetch_user(
-                    int(data[0]["borrower_discord_id"])
-                )
+                user = await self.bot.fetch_user(int(data[0]["borrower_discord_id"]))
 
                 dm_content = await read_text_file(
                     get_config_value(
@@ -902,11 +960,11 @@ class botInfrastructureManagement(Cog):
 
                 dm_content = await self.replace_respond_via_dm(
                     dm_content,
-                    name=discord_id.display_name,
+                    name=user.display_name,
                     item_name=data[0]["borrowed_object_name"],
                 )
 
-                await discord_id.send(dm_content)
+                await user.send(dm_content)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -928,7 +986,7 @@ class botInfrastructureManagement(Cog):
         try:
             await self.check_user_id(discord_id=interaction.user.id)
 
-            raw_data = await self.database_handle.find_with_filter(
+            raw_data = await self.database_handle.find881400285841461248_with_filter(
                 self.database_handle.infrastructure_database,
                 {"_id": ObjectId(borrow_id)},
             )
@@ -948,9 +1006,7 @@ class botInfrastructureManagement(Cog):
                     ephemeral=True,
                 )
 
-                discord_id = await self.bot.fetch_user(
-                    int(data[0]["borrower_discord_id"])
-                )
+                user = await self.bot.fetch_user(int(data[0]["borrower_discord_id"]))
 
                 dm_content = await read_text_file(
                     get_config_value(
@@ -961,14 +1017,183 @@ class botInfrastructureManagement(Cog):
 
                 dm_content = await self.replace_respond_via_dm(
                     dm_content,
-                    name=discord_id.display_name,
+                    name=user.display_name,
                     item_name=data[0]["borrowed_object_name"],
                 )
 
-                await discord_id.send(dm_content)
+                await user.send(dm_content)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
+                    ephemeral=True,
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infra_return_admin_list",
+        description="Command for admin to list item is returned too confirm",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_return_admin_list(
+        self, interaction: discord.Interaction
+    ) -> None:
+        try:
+            await self.check_user_id(discord_id=interaction.user.id)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {"status": "RETURNED"},
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                return_embed = await self._infra_admin_list(data)
+
+                await interaction.response.send_message(embeds=return_embed)
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementAdminResponseDefault.no_return_queue_response,
+                    ephemeral=True,
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infra_borrow_admin_list",
+        description="Command for admin to list item is borrowing",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_borrow_admin_list(
+        self, interaction: discord.Interaction
+    ) -> None:
+        try:
+            await self.check_user_id(discord_id=interaction.user.id)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {
+                    "status": {
+                        "$in": [
+                            "BORROWING",
+                            "BORROWING - NEED REVIEW",
+                        ]
+                    }
+                },
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                return_embed = await self._infra_admin_list(data)
+
+                await interaction.response.send_message(embeds=return_embed)
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementAdminResponseDefault.no_borrow_found_response,
+                    ephemeral=True,
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infra_late_admin_list",
+        description="Command for admin to list item is lost",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_late_admin_list(
+        self, interaction: discord.Interaction
+    ) -> None:
+        try:
+            await self.check_user_id(discord_id=interaction.user.id)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {"status": "LATED"},
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                return_embed = await self._infra_admin_list(data)
+
+                await interaction.response.send_message(embeds=return_embed)
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementAdminResponseDefault.no_late_return_item_found_response,
+                    ephemeral=True,
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infra_lost_admin_list",
+        description="Command for admin to list item is lost",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_lost_admin_list(
+        self, interaction: discord.Interaction
+    ) -> None:
+        try:
+            await self.check_user_id(discord_id=interaction.user.id)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {"status": "LOST"},
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                return_embed = await self._infra_admin_list(data)
+
+                await interaction.response.send_message(embeds=return_embed)
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementAdminResponseDefault.no_lost_item_found_response,
+                    ephemeral=True,
+                )
+        except Exception as e:
+            await interaction.response.send_message(e.__str__(), ephemeral=True)
+            print(e)
+
+    @app_commands.command(
+        name="infra_review_admin_list",
+        description="Command for admin to list item is lost",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def infrastructure_review_admin_list(
+        self, interaction: discord.Interaction
+    ) -> None:
+        try:
+            await self.check_user_id(discord_id=interaction.user.id)
+
+            raw_data = await self.database_handle.find_with_filter(
+                self.database_handle.infrastructure_database,
+                {
+                    "status": {
+                        "$in": [
+                            "BORROWING - NEED REVIEW",
+                            "RETURNED",
+                        ]
+                    }
+                },
+            )
+
+            data = list(raw_data.clone())
+
+            if len(data) > 0:
+                return_embed = await self._infra_admin_list(data)
+
+                await interaction.response.send_message(embeds=return_embed)
+            else:
+                await interaction.response.send_message(
+                    botInfrastructureManagementAdminResponseDefault.no_lost_item_found_response,
                     ephemeral=True,
                 )
         except Exception as e:
@@ -984,8 +1209,12 @@ class botInfrastructureManagement(Cog):
     @infrastructure_admin_extend.error
     @infrastructure_borrow_admin_affirm.error
     @infrastructure_borrow_admin_deny.error
+    @infrastructure_borrow_admin_list.error
     @infrastructure_return_admin_affirm.error
     @infrastructure_return_admin_fail.error
+    @infrastructure_return_admin_list.error
+    @infrastructure_late_admin_list.error
+    @infrastructure_lost_admin_list.error
     async def error_admin_response(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
@@ -1005,51 +1234,145 @@ class botInfrastructureManagement(Cog):
     """
 
     @loop(time=infrastructure_task_time)
-    async def infrastructure_warning_return_task(self):
-        today: date = datetime.date.today() + datetime.timedelta(
-            days=get_config_value(
-                main_config="infrastructure_config",
-                config="warning_return_day_before_days",
-            )
-        )
-        search_topic = today.strftime("%d/%m/%Y")
-        search_request = {"$regex": search_topic}
+    async def infrastructure_lost_late_warning_task(self):
+        today: datetime = datetime.today()
+        today_str = today.strftime("%d/%m/%Y")
         search_result = await self.database_handle.find_with_filter(
             self.database_handle.infrastructure_database,
             {
-                "$and": [
-                    {"expected_return_time": search_request},
-                    {
-                        "status": {
-                            "$in": [
-                                "LATED",
-                                "LOST",
-                            ]
-                        }
-                    },
-                ],
+                "status": {
+                    "$in": [
+                        "BORROWING",
+                        "BORROWING - NEED REVIEW",
+                        "EXTEND",
+                        "LATED",
+                        "LOST",
+                    ]
+                }
             },
         )
 
         if len(list(search_result.clone())) > 0:
             for cursor in search_result:
-                if cursor["status"] == "LATED":
-                    response_msg = await read_text_file(
-                        get_config_value(
-                            main_config="infrastructure_config",
-                            config="borrow_infrastructure_response_path",
-                        )
-                    )
-                elif cursor["status"] == "LOST":
-                    response_msg = await read_text_file(
-                        get_config_value(
-                            main_config="infrastructure_config",
-                            config="lost_infrastructure_response_path",
-                        )
-                    )
+                response_msg = ""
 
-    @infrastructure_warning_return_task.before_loop
-    async def infrastructure_warning_return_task_before(self):
+                user = await self.bot.fetch_user(int(cursor["borrower_discord_id"]))
+                sequence_remind = get_config_value(
+                    main_config="infrastructure_config",
+                    config="max_return_days",
+                ) / get_config_value(
+                    main_config="infrastructure_config",
+                    config="warning_messeages_send_out",
+                )
+
+                if cursor["status"] in [
+                    "BORROWING",
+                    "BORROWING - NEED REVIEW",
+                    "EXTEND",
+                ]:
+                    if cursor["expected_return_time"] == today_str:
+                        cursor["status"] = "LATED"
+                        await self.database_handle.late_infrastructure_status(
+                            borrow_id=cursor["_id"]
+                        )
+                    elif (
+                        datetime.strptime(
+                            cursor["expected_return_time"], "%d/%m/%Y"
+                        ).date()
+                        - datetime.today().date()
+                    ).days == get_config_value(
+                        main_config="infrastructure_config",
+                        config="warning_return_day_before_days",
+                    ):
+                        response_msg = await self.replace_respond_via_dm(
+                            await read_text_file(
+                                get_config_value(
+                                    main_config="infrastructure_config",
+                                    config="warning_return_infrastructure_response_path",
+                                )
+                            ),
+                            name=user.display_name,
+                            item_name=cursor["borrowed_object_name"],
+                            max_return_time=str(
+                                get_config_value(
+                                    main_config="infrastructure_config",
+                                    config="max_return_days",
+                                )
+                            ),
+                        )
+
+                        await user.send(response_msg)
+
+                if cursor["status"] == "LATED":
+                    if (
+                        datetime.today().date()
+                        - datetime.strptime(
+                            cursor["expected_return_time"], "%d/%m/%Y"
+                        ).date()
+                    ).days == get_config_value(
+                        main_config="infrastructure_config",
+                        config="max_return_days",
+                    ):
+                        cursor["status"] = "LOST"
+                        await self.database_handle.lost_infrastructure_status(
+                            borrow_id=cursor["_id"]
+                        )
+                    elif (
+                        datetime.today().date()
+                        - datetime.strptime(
+                            cursor["expected_return_time"], "%d/%m/%Y"
+                        ).date()
+                    ).days % sequence_remind == 0:
+                        response_msg = await self.replace_respond_via_dm(
+                            await read_text_file(
+                                get_config_value(
+                                    main_config="infrastructure_config",
+                                    config="warning_return_infrastructure_timeup_response_path",
+                                )
+                            ),
+                            name=(
+                                await self.bot.fetch_user(
+                                    int(cursor["borrower_discord_id"])
+                                )
+                            ).display_name,
+                            item_name=cursor["borrowed_object_name"],
+                            expected_return_day=cursor["expected_return_time"],
+                            max_return_time=str(
+                                get_config_value(
+                                    main_config="infrastructure_config",
+                                    config="max_return_days",
+                                )
+                            ),
+                        )
+
+                        await user.send(response_msg)
+
+                if cursor["status"] == "LOST":
+                    if (
+                        datetime.today().date()
+                        - datetime.strptime(
+                            cursor["expected_return_time"], "%d/%m/%Y"
+                        ).date()
+                    ).days % sequence_remind == 0:
+                        response_msg = await self.replace_respond_via_dm(
+                            await read_text_file(
+                                get_config_value(
+                                    main_config="infrastructure_config",
+                                    config="lost_infrastructure_response_path",
+                                )
+                            ),
+                            name=(
+                                await self.bot.fetch_user(
+                                    int(cursor["borrower_discord_id"])
+                                )
+                            ).display_name,
+                            item_name=cursor["borrowed_object_name"],
+                        )
+
+                        await user.send(response_msg)
+
+    @infrastructure_lost_late_warning_task.before_loop
+    async def infrastructure_lost_late_warning_task_before(self):
         await self.bot.wait_until_ready()
 
     """
@@ -1062,5 +1385,8 @@ class botInfrastructureManagement(Cog):
     )
     @app_commands.checks.has_permissions(administrator=True)
     async def infrastructure_admin_test(self, interaction: discord.Interaction) -> None:
-        await self.infrastructure_warning_return_task()
+        # await self.bot.tree.sync()
+        await interaction.response.send_message("OK", ephemeral=True, delete_after=10)
+
+        await self.infrastructure_lost_late_warning_task()
         # pass
