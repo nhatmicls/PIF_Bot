@@ -1,7 +1,8 @@
-Chào bạn <Name>! Mình là bot quản lí cơ sở vật chất của PIF Lab
+Chào bạn **<Name>**! Mình là bot quản lí cơ sở vật chất của PIF Lab
 
-Theo trong ghi chép của hệ thống bạn đã mượn <Item_name> và đã làm mất trong lúc mượn.
+**Theo trong ghi chép của hệ thống bạn đã mượn** **`<Item_name>`** **và đã làm mất trong lúc mượn.**
 
 Hãy đảm bảo mua lại để bù vào vật chất bạn đã làm mất !!!
 
 Thân ái và quyết thắng !
+--------------------------------------------

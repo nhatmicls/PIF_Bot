@@ -1,6 +1,6 @@
-Chúc mừng sinh nhật, <Name>!
+Chúc mừng sinh nhật, **<Name>**!
 
-Chào <Name>,
+Chào **<Name>**,
 
 Chúc mừng sinh nhật! Ngày hôm nay, chúng tôi muốn tặng cho bạn những lời chúc tốt đẹp nhất và mong rằng bạn sẽ có một ngày đầy niềm vui và hạnh phúc.
 

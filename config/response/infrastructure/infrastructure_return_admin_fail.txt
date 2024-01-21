@@ -1,11 +1,12 @@
-Chào bạn <Name>! Mình là bot quản lí cơ sở vật chất của PIF Lab
+Chào bạn **<Name>**! Mình là bot quản lí cơ sở vật chất của PIF Lab
 
-Mình xin thông báo rằng bạn đã thủ tục việc trả <Item_name> mà bạn đã mượn từ PIF Lab **thất bại**.
+Mình xin thông báo rằng bạn đã thủ tục việc trả **`<Item_name>`** mà bạn đã mượn từ PIF Lab **thất bại**.
 
-Việc trả <Item_name> của bạn đã được kiểm tra bởi ban quản lí nhưng hiện tại không thấy <Item_name> tại nơi trả đồ.
+Việc trả **`<Item_name>`** của bạn đã được kiểm tra bởi ban quản lí nhưng hiện tại không thấy **`<Item_name>`** tại nơi trả đồ.
 
 Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm, vui lòng liên hệ với ban quản lí.
 
 Trân trọng,
 Thân ái và quyết thắng !
 Quản lí cơ sở vật chất PIF
+--------------------------------------------

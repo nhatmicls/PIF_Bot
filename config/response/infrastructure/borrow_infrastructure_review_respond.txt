@@ -1,9 +1,9 @@
-Chào bạn <Name>! Mình là bot quản lí cơ sở vật chất của PIF Lab
+Chào bạn **<Name>**! Mình là bot quản lí cơ sở vật chất của PIF Lab
 
-Mình xin thông báo rằng bạn đã đăng ký mượn thành công <Item_name> tại PIF Lab.
+Mình xin thông báo rằng bạn đã đăng ký mượn thành công **`<Item_name>`** tại PIF Lab.
 
 Việc đăng ký của bạn đã được ghi nhận và hệ thống đã xác nhận việc mượn đồ. 
-Ngày trả đồ: <Expected_return_day>.
+Ngày trả đồ: **<Expected_return_day>**.
 
 Nhưng việc mượn món đồ này dài hơn quy định sẽ được thông báo với ban chủ nhiệm/ ban quản lí để xác nhận vấn đề này, trong trường hợp ban chủ nhiệm không đồng ý thì bạn hãy trả lại đồ cho lab để lab có thể thực hiện những công việc trong tương lai.
 
@@ -12,3 +12,4 @@ Nếu có bất kỳ thắc mắc hoặc cần hỗ trợ thêm, vui lòng liên
 Trân trọng,
 Thân ái và quyết thắng !
 Quản lí cơ sở vật chất PIF
+--------------------------------------------
