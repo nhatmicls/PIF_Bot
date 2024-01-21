@@ -81,3 +81,33 @@ class botInfrastructureManagementAdminResponseDefault:
         "You are using admin tool, please use in the right way\n"
         "Thanks."
     )
+
+    no_borrow_found_response = (
+        "No one borrow anything in lab please check it later.\n"
+        "Note: This system depend on human innocent please check it manually\n"
+        "Thanks."
+    )
+
+    no_return_queue_response = (
+        "No one return item in queue please check it later.\n" "Thanks."
+    )
+
+    no_late_return_item_found_response = (
+        "No one late return item found in system please check it later.\n" "Thanks."
+    )
+
+    no_lost_item_found_response = (
+        "No one lost item found in system please check it later.\n" "Thanks."
+    )
+
+    borrow_need_review_queue_add_response = (
+        "**<Name>** just borrow **`<Item_name>`** but longer than expect (<ETA_of_days_to_return> days), ID borrow: <ID>.\n"
+        "Please check it manually and confirm it\n"
+        "Thanks."
+    )
+
+    return_queue_add_response = (
+        "**<Name>** just returned **`<Item_name>`**, ID borrow: <ID>.\n"
+        "Please check it manually and confirm it\n"
+        "Thanks."
+    )
