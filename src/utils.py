@@ -38,6 +38,21 @@ async def check_guild_id(interaction: discord.Interaction) -> bool:
         return False
 
 
+def check_admin_role(role: List[str]) -> bool:
+    def predicate(interaction: discord.Interaction) -> bool:
+        if isinstance(interaction.user, discord.User):
+            raise discord.app_commands.errors.NoPrivateMessage()
+
+        user_role = interaction.user.roles
+        for user_each_role in user_role:
+            if user_each_role.name in role:
+                return True
+
+        raise discord.app_commands.errors.MissingAnyRole(role)
+
+    return discord.app_commands.check(predicate)
+
+
 async def read_text_file(path: str) -> str:
     f = open(path, "r")
     return f.read()
