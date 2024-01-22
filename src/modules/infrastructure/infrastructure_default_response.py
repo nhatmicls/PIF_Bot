@@ -32,6 +32,12 @@ class botInfrastructureManagementResponseDefault:
         "Please contact DIRECT to authority for extend return day this item."
     )
 
+    deny_extend_borrow_not_confirm_response = (
+        "You unable to extend expected return time.\n"
+        "This return is not confirm please contact to authority confirm and extend it later.\n"
+        "Thanks."
+    )
+
     extend_expected_return_day_response = (
         "Your expected return date has been extended.\n"
         "You can not extend anymore please notice that.\n"

@@ -8,6 +8,7 @@ from discord.ext.tasks import loop
 from utils import *
 from typing import *
 
+import pytz
 from datetime import date, datetime, timezone, time, timedelta
 
 from pymongo.cursor import Cursor
@@ -22,6 +23,7 @@ from format_data import *
 from database_handler import botDatabase
 
 utc = timezone.utc
+vntz = pytz.timezone("Asia/Ho_Chi_Minh")
 infrastructure_task_time = time(
     hour=get_config_value(
         main_config="infrastructure_config", config="warning_check_hour_utc"
@@ -72,25 +74,103 @@ class botInfrastructureManagement(Cog):
         if not data_verify:
             raise idNotFound
 
+    async def color_embed(self, status: str) -> discord.Embed:
+        if status in [
+            "BORROWING",
+            "BORROWING - NEED REVIEW",
+        ]:
+            return discord.Color.green()
+        elif status == "EXTEND":
+            return discord.Color.blue()
+        elif status == "RETURNED":
+            return discord.Color.dark_green()
+        elif status == "LATED":
+            return discord.Color.yellow()
+        elif status == "LOST":
+            return discord.Color.dark_red()
+        else:
+            return discord.Color.purple()
+
     """
     Generator embed sector
     """
 
-    async def infrastructure_borrow_embed(
-        self, discord_name: str, data: list
+    async def infrastructure_admin_noti_embed(
+        self,
+        data: Dict[str, Union[str, int]],
+        result: bool = False,
+        event: str = "",
+        by_who: str = "",
     ) -> discord.Embed:
         embed = discord.Embed(
-            title="Borrow register",
-            color=discord.Color.random(),
+            color=await self.color_embed(data["status"]),
         )
 
-    async def infrastructure_borrow_review_embed(
-        self, discord_name: str, data: list
-    ) -> discord.Embed:
-        embed = discord.Embed(
-            title="Borrow register",
-            color=discord.Color.random(),
+        if event == "":
+            embed.title = data["status"] + " event"
+        else:
+            embed.title = event
+
+        embed.set_author(name="PIF Admin")
+        embed.set_footer(text="Powered by Micls")
+
+        embed.add_field(
+            name="Notification",
+            value=data["status"],
+            inline=True,
         )
+        embed.add_field(
+            name="Timestamp",
+            value=datetime.now(tz=vntz).strftime("%d/%m/%Y %H:%M:%S"),
+            inline=True,
+        )
+
+        embed.add_field(name="", value="", inline=False)
+        embed.add_field(
+            name="Borrow ID",
+            value=json.loads(dumps(data["_id"]))["$oid"],
+            inline=True,
+        )
+        embed.add_field(
+            name="Borrowed item name",
+            value=data["borrowed_object_name"],
+            inline=True,
+        )
+
+        embed.add_field(name="", value="", inline=False)
+        embed.add_field(
+            name="Expected return day",
+            value=data["expected_return_time"],
+            inline=True,
+        )
+        embed.add_field(
+            name="State",
+            value=data["status"],
+            inline=True,
+        )
+
+        if result == False:
+            embed.add_field(
+                name="Init Result",
+                value="False",
+                inline=True,
+            )
+        else:
+            embed.add_field(
+                name="Init Result",
+                value="Success",
+                inline=True,
+            )
+
+        if by_who != "":
+            embed.add_field(name="", value="", inline=False)
+            embed.add_field(
+                name="By",
+                value=by_who,
+                inline=True,
+            )
+
+        return embed
 
     async def infrastructure_list_embed(
         self, discord_name: str, data: list
@@ -100,23 +180,8 @@ class botInfrastructureManagement(Cog):
         for each_data in data:
             embed = discord.Embed(
                 title="Borrow list of " + discord_name,
-                # description="Borrow list",
-                color=discord.Color.random(),
+                color=await self.color_embed(each_data["status"]),
             )
-
-            if each_data["status"] in [
-                "BORROWING",
-                "BORROWING - NEED REVIEW",
-            ]:
-                embed.color = discord.Color.green()
-            elif each_data["status"] == "EXTEND":
-                embed.color = discord.Color.blue()
-            elif each_data["status"] == "RETURNED":
-                embed.color = discord.Color.dark_green()
-            elif each_data["status"] == "LATED":
-                embed.color = discord.Color.yellow()
-            elif each_data["status"] == "LOST":
-                embed.color = discord.Color.dark_red()
 
             embed.set_author(name="PIF Admin")
             embed.set_footer(text="Powered by Micls")
@@ -148,7 +213,7 @@ class botInfrastructureManagement(Cog):
     API Discord Generic sector
     """
 
-    async def _infra_admin_list(self, data) -> Sequence[discord.Embed]:
+    async def _infra_admin_list_embeds(self, data) -> Sequence[discord.Embed]:
         return_embed = []
 
         while len(data) > 0:
@@ -203,6 +268,12 @@ class botInfrastructureManagement(Cog):
                 expected_return_time=expected_return_time,
             )
 
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
+
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
                 {
@@ -224,9 +295,8 @@ class botInfrastructureManagement(Cog):
             )
             data = list(raw_data.clone()).copy()
 
-            date_format = "%d/%m/%Y"
             timedelta = (
-                datetime.strptime(expected_return_time, date_format).date()
+                datetime.strptime(expected_return_time, "%d/%m/%Y").date()
                 - datetime.today().date()
             )
 
@@ -266,7 +336,7 @@ class botInfrastructureManagement(Cog):
                 config="max_days_borrow_without_confirm",
             ):
                 """
-                Get response when borrow time longer than expect without confirm
+                Get response when borrow need confirm
                 """
 
                 await self.database_handle.borrow_review_infrastructure_status(
@@ -280,27 +350,12 @@ class botInfrastructureManagement(Cog):
                 )
                 respond_id = respond_id.replace("<days>", str(timedelta.days))
 
-                noti_channel = await self.bot.fetch_channel(
-                    get_config_value(
-                        main_config="infrastructure_config", config="admin_noti_channel"
-                    )
-                )
-                noti_content = await self.replace_respond_via_dm(
-                    botInfrastructureManagementAdminResponseDefault.borrow_need_review_queue_add_response,
-                    name=str(interaction.user.display_name),
-                    item_name=data[0]["borrowed_object_name"],
-                    eta_of_days_to_return=str(timedelta.days),
-                    id=json.loads(dumps(borrow_id))["$oid"],
-                )
-
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.review_for_long_time_borrow_response
                     + "\n"
                     + respond_id,
                     ephemeral=True,
                 )
-                await noti_channel.send(noti_content)
-
             else:
                 """
                 Get response when borrow success
@@ -337,6 +392,20 @@ class botInfrastructureManagement(Cog):
                 )
 
                 await interaction.user.send(dm_content)
+
+            noti_data = list(
+                (
+                    await self.database_handle.find_with_filter(
+                        self.database_handle.infrastructure_database,
+                        {"_id": ObjectId(borrow_id)},
+                    )
+                ).clone()
+            )[0]
+            noti_embed = await self.infrastructure_admin_noti_embed(
+                data=noti_data, result=True
+            )
+
+            await admin_noti_channel.send(content="", embed=noti_embed)
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)
             print(e)
@@ -423,6 +492,12 @@ class botInfrastructureManagement(Cog):
             await self.check_user_id(discord_id=interaction.user.id)
             await expected_return_day_verify(date=expected_return_time)
 
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
+
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
                 {
@@ -442,16 +517,20 @@ class botInfrastructureManagement(Cog):
                         ephemeral=True,
                     )
                     return
-
-                date_format = "%d/%m/%Y"
+                elif data[0]["status"] == "BORROWING - NEED REVIEW":
+                    await interaction.response.send_message(
+                        botInfrastructureManagementResponseDefault.deny_extend_borrow_not_confirm_response,
+                        ephemeral=True,
+                    )
+                    return
 
                 start_day = await self.database_handle.get_start_borrow_date(
                     borrow_id=ObjectId(borrow_id)
                 )
 
                 timedelta = (
-                    datetime.strptime(expected_return_time, date_format).date()
-                    - datetime.strptime(start_day, date_format).date()
+                    datetime.strptime(expected_return_time, "%d/%m/%Y").date()
+                    - datetime.strptime(start_day, "%d/%m/%Y").date()
                 )
 
                 if timedelta.days > get_config_value(
@@ -486,7 +565,20 @@ class botInfrastructureManagement(Cog):
                         expected_return_day=expected_return_time,
                     )
 
+                    noti_data = list(
+                        (
+                            await self.database_handle.find_with_filter(
+                                self.database_handle.infrastructure_database,
+                                {"_id": ObjectId(borrow_id)},
+                            )
+                        ).clone()
+                    )[0]
+                    noti_embed = await self.infrastructure_admin_noti_embed(
+                        data=noti_data, result=True
+                    )
+
                     await interaction.user.send(dm_content)
+                    await admin_noti_channel.send(content="", embed=noti_embed)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -512,6 +604,13 @@ class botInfrastructureManagement(Cog):
 
         try:
             await self.check_user_id(discord_id=interaction.user.id)
+
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
+
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
                 {
@@ -523,11 +622,6 @@ class botInfrastructureManagement(Cog):
             )
 
             data = list(raw_data.clone())
-            noti_channel = self.bot.get_channel(
-                get_config_value(
-                    main_config="infrastructure_config", config="admin_noti_channel"
-                )
-            )
 
             if len(data) > 0:
                 await self.database_handle.return_infrastructure_status(
@@ -551,16 +645,20 @@ class botInfrastructureManagement(Cog):
                     name=str(interaction.user.display_name),
                     item_name=data[0]["borrowed_object_name"],
                 )
-
-                noti_content = await self.replace_respond_via_dm(
-                    botInfrastructureManagementAdminResponseDefault.return_queue_add_response,
-                    name=str(interaction.user.display_name),
-                    item_name=data[0]["borrowed_object_name"],
-                    id=borrow_id,
-                )
-
                 await interaction.user.send(dm_content)
-                await noti_channel.send(noti_content)
+
+                noti_data = list(
+                    (
+                        await self.database_handle.find_with_filter(
+                            self.database_handle.infrastructure_database,
+                            {"_id": ObjectId(borrow_id)},
+                        )
+                    ).clone()
+                )[0]
+                noti_embed = await self.infrastructure_admin_noti_embed(
+                    data=noti_data, result=True
+                )
+                await admin_noti_channel.send(content="", embed=noti_embed)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -605,6 +703,11 @@ class botInfrastructureManagement(Cog):
         try:
             await self.check_user_id(discord_id=str(discord_id.id))
             await expected_return_day_verify(date=expected_return_time)
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
 
             borrow_id = await self.database_handle.borrow_infrastructure(
                 discord_id=str(discord_id.id),
@@ -612,9 +715,8 @@ class botInfrastructureManagement(Cog):
                 expected_return_time=expected_return_time,
             )
 
-            date_format = "%d/%m/%Y"
             timedelta = (
-                datetime.strptime(expected_return_time, date_format).date()
+                datetime.strptime(expected_return_time, "%d/%m/%Y").date()
                 - datetime.today().date()
             )
 
@@ -632,27 +734,36 @@ class botInfrastructureManagement(Cog):
                 )
             )
             respond_id = respond_id.replace("<days>", str(timedelta.days))
-
             await interaction.response.send_message(
                 respond_id,
                 ephemeral=True,
             )
 
-            dm_content = await read_text_file(
-                get_config_value(
-                    main_config="infrastructure_config",
-                    config="borrow_infrastructure_response_path",
-                )
-            )
-
             dm_content = await self.replace_respond_via_dm(
-                dm_content,
+                await read_text_file(
+                    get_config_value(
+                        main_config="infrastructure_config",
+                        config="borrow_infrastructure_response_path",
+                    )
+                ),
                 name=str(discord_id.display_name),
                 item_name=object_name,
                 expected_return_day=expected_return_time,
             )
-
             await discord_id.send(dm_content)
+
+            noti_data = list(
+                (
+                    await self.database_handle.find_with_filter(
+                        self.database_handle.infrastructure_database,
+                        {"_id": ObjectId(borrow_id)},
+                    )
+                ).clone()
+            )[0]
+            noti_embed = await self.infrastructure_admin_noti_embed(
+                data=noti_data, result=True, by_who=interaction.user.display_name
+            )
+            await admin_noti_channel.send(content="", embed=noti_embed)
 
         except Exception as e:
             await interaction.response.send_message(e.__str__(), ephemeral=True)
@@ -753,6 +864,12 @@ class botInfrastructureManagement(Cog):
             await self.check_user_id(discord_id=interaction.user.id)
             await expected_return_day_verify(date=expected_return_time)
 
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
+
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
                 {"_id": ObjectId(borrow_id)},
@@ -773,21 +890,31 @@ class botInfrastructureManagement(Cog):
 
                 user = await self.bot.fetch_user(int(data[0]["borrower_discord_id"]))
 
-                dm_content = await read_text_file(
-                    get_config_value(
-                        main_config="infrastructure_config",
-                        config="extend_infrastructure_response_path",
-                    )
-                )
-
                 dm_content = await self.replace_respond_via_dm(
-                    dm_content,
+                    await read_text_file(
+                        get_config_value(
+                            main_config="infrastructure_config",
+                            config="extend_infrastructure_response_path",
+                        )
+                    ),
                     name=user.display_name,
                     item_name=data[0]["borrowed_object_name"],
                     expected_return_day=expected_return_time,
                 )
-
                 await user.send(dm_content)
+
+                noti_data = list(
+                    (
+                        await self.database_handle.find_with_filter(
+                            self.database_handle.infrastructure_database,
+                            {"_id": ObjectId(borrow_id)},
+                        )
+                    ).clone()
+                )[0]
+                noti_embed = await self.infrastructure_admin_noti_embed(
+                    data=noti_data, result=True, by_who=interaction.user.display_name
+                )
+                await admin_noti_channel.send(content="", embed=noti_embed)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -808,6 +935,11 @@ class botInfrastructureManagement(Cog):
     ) -> None:
         try:
             await self.check_user_id(discord_id=interaction.user.id)
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
 
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
@@ -847,6 +979,22 @@ class botInfrastructureManagement(Cog):
                 )
 
                 await user.send(dm_content)
+
+                noti_data = list(
+                    (
+                        await self.database_handle.find_with_filter(
+                            self.database_handle.infrastructure_database,
+                            {"_id": ObjectId(borrow_id)},
+                        )
+                    ).clone()
+                )[0]
+                noti_embed = await self.infrastructure_admin_noti_embed(
+                    data=noti_data,
+                    result=True,
+                    by_who=interaction.user.display_name,
+                    event="Borrowing affirm event",
+                )
+                await admin_noti_channel.send(content="", embed=noti_embed)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -867,6 +1015,11 @@ class botInfrastructureManagement(Cog):
     ) -> None:
         try:
             await self.check_user_id(discord_id=interaction.user.id)
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
 
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
@@ -906,8 +1059,23 @@ class botInfrastructureManagement(Cog):
                         main_config="infrastructure_config", config="max_return_days"
                     ),
                 )
-
                 await user.send(dm_content)
+
+                noti_data = list(
+                    (
+                        await self.database_handle.find_with_filter(
+                            self.database_handle.infrastructure_database,
+                            {"_id": ObjectId(borrow_id)},
+                        )
+                    ).clone()
+                )[0]
+                noti_embed = await self.infrastructure_admin_noti_embed(
+                    data=noti_data,
+                    result=True,
+                    by_who=interaction.user.display_name,
+                    event="Borrowing deny event",
+                )
+                await admin_noti_channel.send(content="", embed=noti_embed)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -928,6 +1096,11 @@ class botInfrastructureManagement(Cog):
     ) -> None:
         try:
             await self.check_user_id(discord_id=interaction.user.id)
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
 
             raw_data = await self.database_handle.find_with_filter(
                 self.database_handle.infrastructure_database,
@@ -965,6 +1138,22 @@ class botInfrastructureManagement(Cog):
                 )
 
                 await user.send(dm_content)
+
+                noti_data = list(
+                    (
+                        await self.database_handle.find_with_filter(
+                            self.database_handle.infrastructure_database,
+                            {"_id": ObjectId(borrow_id)},
+                        )
+                    ).clone()
+                )[0]
+                noti_embed = await self.infrastructure_admin_noti_embed(
+                    data=noti_data,
+                    result=True,
+                    by_who=interaction.user.display_name,
+                    event="Return affirm event",
+                )
+                await admin_noti_channel.send(content="", embed=noti_embed)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -985,6 +1174,11 @@ class botInfrastructureManagement(Cog):
     ) -> None:
         try:
             await self.check_user_id(discord_id=interaction.user.id)
+            admin_noti_channel = await self.bot.fetch_channel(
+                get_config_value(
+                    main_config="infrastructure_config", config="admin_noti_channel"
+                )
+            )
 
             raw_data = await self.database_handle.find881400285841461248_with_filter(
                 self.database_handle.infrastructure_database,
@@ -1022,6 +1216,22 @@ class botInfrastructureManagement(Cog):
                 )
 
                 await user.send(dm_content)
+
+                noti_data = list(
+                    (
+                        await self.database_handle.find_with_filter(
+                            self.database_handle.infrastructure_database,
+                            {"_id": ObjectId(borrow_id)},
+                        )
+                    ).clone()
+                )[0]
+                noti_embed = await self.infrastructure_admin_noti_embed(
+                    data=noti_data,
+                    result=True,
+                    by_who=interaction.user.display_name,
+                    event="Return deny event",
+                )
+                await admin_noti_channel.send(content="", embed=noti_embed)
             else:
                 await interaction.response.send_message(
                     botInfrastructureManagementResponseDefault.borrow_id_not_found_response,
@@ -1050,7 +1260,7 @@ class botInfrastructureManagement(Cog):
             data = list(raw_data.clone())
 
             if len(data) > 0:
-                return_embed = await self._infra_admin_list(data)
+                return_embed = await self._infra_admin_list_embeds(data)
 
                 await interaction.response.send_message(embeds=return_embed)
             else:
@@ -1088,7 +1298,7 @@ class botInfrastructureManagement(Cog):
             data = list(raw_data.clone())
 
             if len(data) > 0:
-                return_embed = await self._infra_admin_list(data)
+                return_embed = await self._infra_admin_list_embeds(data)
 
                 await interaction.response.send_message(embeds=return_embed)
             else:
@@ -1119,7 +1329,7 @@ class botInfrastructureManagement(Cog):
             data = list(raw_data.clone())
 
             if len(data) > 0:
-                return_embed = await self._infra_admin_list(data)
+                return_embed = await self._infra_admin_list_embeds(data)
 
                 await interaction.response.send_message(embeds=return_embed)
             else:
@@ -1150,7 +1360,7 @@ class botInfrastructureManagement(Cog):
             data = list(raw_data.clone())
 
             if len(data) > 0:
-                return_embed = await self._infra_admin_list(data)
+                return_embed = await self._infra_admin_list_embeds(data)
 
                 await interaction.response.send_message(embeds=return_embed)
             else:
@@ -1188,7 +1398,7 @@ class botInfrastructureManagement(Cog):
             data = list(raw_data.clone())
 
             if len(data) > 0:
-                return_embed = await self._infra_admin_list(data)
+                return_embed = await self._infra_admin_list_embeds(data)
 
                 await interaction.response.send_message(embeds=return_embed)
             else:
@@ -1252,6 +1462,12 @@ class botInfrastructureManagement(Cog):
             },
         )
 
+        admin_noti_channel = await self.bot.fetch_channel(
+            get_config_value(
+                main_config="infrastructure_config", config="admin_noti_channel"
+            )
+        )
+
         if len(list(search_result.clone())) > 0:
             for cursor in search_result:
                 response_msg = ""
@@ -1272,9 +1488,23 @@ class botInfrastructureManagement(Cog):
                 ]:
                     if cursor["expected_return_time"] == today_str:
                         cursor["status"] = "LATED"
+
+                        noti_data = list(
+                            (
+                                await self.database_handle.find_with_filter(
+                                    self.database_handle.infrastructure_database,
+                                    {"_id": ObjectId(cursor["_id"])},
+                                )
+                            ).clone()
+                        )[0]
+                        noti_embed = await self.infrastructure_admin_noti_embed(
+                            data=noti_data, result=True
+                        )
+
                         await self.database_handle.late_infrastructure_status(
                             borrow_id=cursor["_id"]
                         )
+                        await admin_noti_channel.send(content="", embed=noti_embed)
                     elif (
                         datetime.strptime(
                             cursor["expected_return_time"], "%d/%m/%Y"
@@ -1314,9 +1544,23 @@ class botInfrastructureManagement(Cog):
                         config="max_return_days",
                     ):
                         cursor["status"] = "LOST"
+
+                        noti_data = list(
+                            (
+                                await self.database_handle.find_with_filter(
+                                    self.database_handle.infrastructure_database,
+                                    {"_id": ObjectId(cursor["_id"])},
+                                )
+                            ).clone()
+                        )[0]
+                        noti_embed = await self.infrastructure_admin_noti_embed(
+                            data=noti_data, result=True
+                        )
+
                         await self.database_handle.lost_infrastructure_status(
                             borrow_id=cursor["_id"]
                         )
+                        await admin_noti_channel.send(content="", embed=noti_embed)
                     elif (
                         datetime.today().date()
                         - datetime.strptime(
