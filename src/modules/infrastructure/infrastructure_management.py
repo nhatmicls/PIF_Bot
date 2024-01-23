@@ -1095,7 +1095,7 @@ class botInfrastructureManagement(Cog):
 
     @app_commands.command(
         name="infra_return_admin_fail",
-        description="Command for admin to confirm item is returned",
+        description="Command for admin to confirm return item is lost",
     )
     @app_commands.describe(borrow_id="Borrow ID")
     @check_admin_role(
